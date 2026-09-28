@@ -10,9 +10,17 @@ from frontend.main_window import MainWindow
 
 def main():
     app = QApplication(sys.argv)
-    style_path = Path(__file__).resolve().parent / "frontend" / "resources" / "styles" / "ptit.qss"
+    resources_path = Path(__file__).resolve().parent / "frontend" / "resources"
+    style_path = resources_path / "styles" / "ptit.qss"
     if style_path.exists():
-        app.setStyleSheet(style_path.read_text(encoding="utf-8"))
+        stylesheet = style_path.read_text(encoding="utf-8")
+        icons_path = resources_path / "icons"
+        stylesheet = stylesheet.replace(
+            "__CHEVRON_DOWN_ICON__", (icons_path / "chevron_down.svg").as_posix()
+        ).replace(
+            "__CHEVRON_UP_ICON__", (icons_path / "chevron_up.svg").as_posix()
+        )
+        app.setStyleSheet(stylesheet)
     window = MainWindow()
     window.show()
     return app.exec()

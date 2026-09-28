@@ -42,14 +42,6 @@ bool XoaSinhVien(
 
 int DemSinhVien(PTRSV dsSV);
 
-void SaoChepSinhVienSangMang(
-    PTRSV dsSV,
-    Sinhvien dsKetQua[],
-    int& soLuong
-);
-
-void SapXepSinhVienTheoMa(Sinhvien dsSinhVien[], int soLuong);
-
 void GiaiPhongDanhSachSinhVien(PTRSV& dsSV);
 
 #endif

@@ -248,23 +248,17 @@ QComboBox::drop-down {
     subcontrol-origin: padding;
     subcontrol-position: top right;
     width: 28px;
-    border-left: 1px solid #e2e8f0;
+    border: none;
     border-top-right-radius: 5px;
     border-bottom-right-radius: 5px;
     background: transparent;
 }
 
 QComboBox::down-arrow {
-    image: none;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid #64748b;
-    width: 0px;
-    height: 0px;
-}
-
-QComboBox::down-arrow:hover {
-    border-top-color: #0f172a;
+    image: url("__CHEVRON_DOWN_ICON__");
+    border: none;
+    width: 20px;
+    height: 14px;
 }
 
 QComboBox QAbstractItemView {
@@ -315,6 +309,12 @@ QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {
     background-color: #e2e8f0;
 }
 
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    image: url("__CHEVRON_UP_ICON__");
+    width: 20px;
+    height: 14px;
+}
+
 QSpinBox::down-button, QDoubleSpinBox::down-button {
     subcontrol-origin: border;
     subcontrol-position: bottom right;
@@ -326,6 +326,12 @@ QSpinBox::down-button, QDoubleSpinBox::down-button {
 
 QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
     background-color: #e2e8f0;
+}
+
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    image: url("__CHEVRON_DOWN_ICON__");
+    width: 20px;
+    height: 14px;
 }
 
 /* --- TABLE WIDGET & VIEW --- */
@@ -520,20 +526,27 @@ QCheckBox::indicator:checked {
 }
 
 QRadioButton::indicator {
-    width: 17px;
-    height: 17px;
-    border: 1.5px solid #cbd5e1;
-    border-radius: 9px;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #cbd5e1;
+    border-radius: 10px;
     background-color: #ffffff;
 }
 
 QRadioButton::indicator:hover {
-    border-color: #2d7dd2;
+    border-color: #10b981;
 }
 
 QRadioButton::indicator:checked {
-    background-color: #ffffff;
-    border: 5px solid #2d7dd2;
+    background-color: #10b981;
+    border: 2px solid #059669;
+    border-radius: 10px;
+    image: none;
+}
+
+QRadioButton::indicator:checked:hover {
+    background-color: #059669;
+    border-color: #047857;
 }
 
 /* --- PROGRESS BAR --- */
@@ -666,12 +679,6 @@ QMenu::separator {
     border-bottom: 1px solid #e2e8f0;
 }
 
-#topbar QLabel#topbarMenu {
-    font-size: 24px;
-    color: #28445f;
-    background: transparent;
-}
-
 #topbar QLineEdit#topbarSearch {
     background-color: #f8fafc;
     border: 1px solid #cbd5e1;
@@ -684,18 +691,6 @@ QMenu::separator {
 #topbar QLineEdit#topbarSearch:focus {
     border: 1.5px solid #2d7dd2;
     background-color: #ffffff;
-}
-
-#topbar QPushButton#topbarNotif {
-    border: none;
-    background: transparent;
-    font-size: 18px;
-    padding: 4px;
-    border-radius: 6px;
-}
-
-#topbar QPushButton#topbarNotif:hover {
-    background-color: #f1f5f9;
 }
 
 #topbar QLabel#topbarUser {
@@ -836,4 +831,3 @@ QFrame#toastFrame {
 NotificationBanner {
     border-radius: 8px;
 }
-

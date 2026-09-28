@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtWidgets import (
     QFrame,
@@ -28,7 +30,10 @@ class FilterBar(QFrame):
         self.buttons = {}
 
         self.setObjectName("filterBar")
-        self.setStyleSheet("""
+        chevron_path = (
+            Path(__file__).resolve().parents[1] / "resources" / "icons" / "chevron_down.svg"
+        ).as_posix()
+        stylesheet = """
             #filterBar {
                 background-color: #ffffff;
                 border: 1px solid #e2e8f0;
@@ -60,19 +65,17 @@ class FilterBar(QFrame):
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
                 width: 28px;
-                border-left: 1px solid #e2e8f0;
+                border: none;
                 border-top-right-radius: 5px;
                 border-bottom-right-radius: 5px;
                 background: transparent;
             }
 
             #filterBar QComboBox::down-arrow {
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 5px solid #64748b;
-                width: 0px;
-                height: 0px;
+                image: url("__CHEVRON_DOWN_ICON__");
+                border: none;
+                width: 20px;
+                height: 14px;
             }
 
             #filterBar QComboBox QAbstractItemView {
@@ -151,7 +154,8 @@ class FilterBar(QFrame):
                 background-color: #a60d25;
                 border-color: #a60d25;
             }
-        """)
+        """
+        self.setStyleSheet(stylesheet.replace("__CHEVRON_DOWN_ICON__", chevron_path))
 
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(14, 10, 14, 10)

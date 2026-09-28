@@ -91,7 +91,6 @@ class Sidebar(QFrame):
             ("credit_class", "▣  Lớp tín chỉ"),
             ("registration", "☑  Đăng ký học"),
             ("score", "✎  Nhập điểm"),
-            ("report", "▤  Báo cáo"),
         ]
 
         for key, text in menu_items:

@@ -17,6 +17,10 @@ bool PhaiHopLe(const string& phai);
 
 bool NienKhoaHopLe(const string& nienKhoa);
 
+string NienKhoaHienTai();
+
+bool NienKhoaKhongCuHonHienTai(const string& nienKhoa);
+
 bool HocKyHopLe(int hocKy);
 
 bool NhomHopLe(int nhom);

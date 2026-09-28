@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import (
     QLabel,
 )
 
+from frontend.components.input_validation import apply_text_validator
+
 
 class SearchBox(QFrame):
     """
@@ -97,6 +99,7 @@ class SearchBox(QFrame):
         self.icon_label.setObjectName("searchIcon")
 
         self.input_field = QLineEdit()
+        apply_text_validator(self.input_field)
         self.input_field.setObjectName("searchInput")
         self.input_field.setPlaceholderText(placeholder)
 

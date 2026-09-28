@@ -1,7 +1,11 @@
-from .login_page import LoginPage
-from .register_page import RegisterPage
+from .dashboard_page import DashboardPage
+from .credit_class_page import CreditClassPage
+from .class_student_page import ClassStudentPage
+from .registration_page import RegistrationPage
+from .score_page import ScorePage
+from .subject_page import SubjectPage
 
 __all__ = [
-    "LoginPage",
-    "RegisterPage",
+    "ClassStudentPage", "CreditClassPage", "DashboardPage",
+    "RegistrationPage", "ScorePage", "SubjectPage",
 ]
