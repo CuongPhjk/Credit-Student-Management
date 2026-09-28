@@ -1,7 +1,7 @@
 # Quản lý tín chỉ sinh viên
 Thành viên nhóm: 
 - Nguyễn Chí Bảo - MSSV: N24DECE004
-- Nguyễn Thanh Cường - MSSV: 
+- Nguyễn Thanh Cường - MSSV: N24DECE006 
 
 Ứng dụng desktop quản lý môn học, lớp niên chế, sinh viên, lớp tín chỉ, đăng ký học và điểm thi. Giao diện được viết bằng **Python/PyQt6**; nghiệp vụ và lưu dữ liệu được viết bằng **C++17**, kết nối qua **pybind11**. Dữ liệu nằm trong các tệp UTF-8 tại `backend/data/`.
 
