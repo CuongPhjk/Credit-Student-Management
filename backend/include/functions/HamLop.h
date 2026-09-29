@@ -6,7 +6,7 @@
 int TimViTriLop(const DS_LOP& dsLop, const string& maLop);
 
 Lop* TimLop(DS_LOP& dsLop, const string& maLop);
-const Lop* TimLop(const DS_LOP& dsLop, const string& maLop);
+
 
 bool KiemTraTrungMaLop(const DS_LOP& dsLop, const string& maLop);
 
@@ -21,6 +21,5 @@ bool HieuChinhLop(
 
 bool XoaLop(DS_LOP& dsLop, const string& maLop, string& loi);
 
-bool LopCoSinhVien(const DS_LOP& dsLop, const string& maLop);
 
 #endif

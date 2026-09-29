@@ -11,6 +11,8 @@ bool MaHopLe(const string& ma, int doDaiToiDa);
 
 bool MaSinhVienHopLe(const string& maSV);
 
+bool TenLopHopLe(const string& tenLop, string& loi);
+
 bool SoDienThoaiHopLe(const string& soDienThoai);
 
 bool PhaiHopLe(const string& phai);

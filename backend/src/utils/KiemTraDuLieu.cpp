@@ -73,6 +73,16 @@ bool MaSinhVienHopLe(const string& maSV) {
     return MaHopLe(maSV, 15);
 }
 
+bool TenLopHopLe(const string& tenLop, string& loi) {
+    if (tenLop.empty()
+        || DemSoKyTuUtf8(tenLop) > 50
+        || tenLop.find('|') != string::npos) {
+        loi = "Ten lop khong hop le, toi da 50 ky tu va khong chua |.";
+        return false;
+    }
+    return true;
+}
+
 bool SoDienThoaiHopLe(const string& soDienThoai) {
     const string daCat = XoaKhoangTrangDauCuoi(soDienThoai);
     if (daCat.size() < 9 || daCat.size() > 11) {
