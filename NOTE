@@ -1,1 +1,2 @@
 Duyệt để xoá : LRN. Sử dụng delete node case 1: xoá các node lá từ dưới lên trên
+MALOPTC (tự động tăng) : MALOPTCmoi = ds.nodes[ds.n - 1]->MALTC  + 1 
