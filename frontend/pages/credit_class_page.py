@@ -65,6 +65,23 @@ def academic_year_is_current_or_future(year, today=None):
     return int(parts[0]) >= current_start_year
 
 
+class SubjectComboBox(QComboBox):
+    """Combobox chon mon hoc ho tro lay/dat theo ma mon hoc hoac nhan hien thi."""
+
+    def setCurrentText(self, text):
+        text_str = str(text).strip()
+        index = self.findData(text_str)
+        if index >= 0:
+            self.setCurrentIndex(index)
+            return
+        for i in range(self.count()):
+            item_text = self.itemText(i)
+            if item_text == text_str or item_text.startswith(text_str + " - "):
+                self.setCurrentIndex(i)
+                return
+        super().setCurrentText(text)
+
+
 class CreditClassForm(EditorForm):
     """Form dùng chung để mở và cập nhật lớp tín chỉ."""
 
@@ -89,9 +106,14 @@ class CreditClassForm(EditorForm):
         form = QFormLayout()
         form.setHorizontalSpacing(18)
         form.setVerticalSpacing(13)
-        self.subject_input = QComboBox()
+        self.subject_input = SubjectComboBox()
         self.subject_input.setEditable(False)
-        self.subject_input.addItems(subject_codes)
+        for item in subject_codes:
+            if isinstance(item, (tuple, list)):
+                label, code = item
+                self.subject_input.addItem(label, code)
+            else:
+                self.subject_input.addItem(str(item), str(item))
         self.subject_input.setPlaceholderText("Chọn mã môn học")
         self.subject_input.setCurrentIndex(-1)
         self.year_input = QLineEdit()
@@ -173,9 +195,18 @@ class CreditClassForm(EditorForm):
             QPushButton#saveButton:hover { background: #076bd0; }
         """)
 
+    def _selected_subject_code(self):
+        data = self.subject_input.currentData()
+        if data is not None and str(data).strip():
+            return str(data).strip()
+        text = self.subject_input.currentText().strip()
+        if " - " in text:
+            return text.split(" - ")[0].strip()
+        return text
+
     def _validate(self):
-        subject = self.subject_input.currentText()
-        if not subject.strip():
+        subject = self._selected_subject_code()
+        if not subject:
             show_field_error(
                 self.subject_input, self.subject_error, "Vui lòng chọn môn học."
             )
@@ -250,7 +281,7 @@ class CreditClassForm(EditorForm):
 
     def values(self):
         return (
-            self.subject_input.currentText(),
+            self._selected_subject_code(),
             self.year_input.text(),
             self.semester_input.value(),
             self.group_input.value(),
@@ -507,7 +538,7 @@ class CreditClassPage(SubjectPage):
         if self.subject_manager is None:
             return []
         return [
-            subject.ma_mh
+            (f"{subject.ma_mh} - {subject.ten_mh}", subject.ma_mh)
             for subject in self.subject_manager.lay_danh_sach_mon_hoc()
         ]
 

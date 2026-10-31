@@ -20,12 +20,7 @@ struct nodeMH{
 typedef nodeMH *treeMH;
 
 // DANG KY
-struct Dangky{
-    string MASV;
-    float DIEM;
-    bool HUYDK = false;
-    bool DADIEM = false;
-};
+
 
 // Dong du lieu hien thi tren bang nhap diem. Cau truc nay chi chua ban sao
 // thong tin, khong nam quyen so huu node sinh vien hay node dang ky.
@@ -38,6 +33,12 @@ struct Diemsinhvien {
 struct Diemcapnhat {
     string MASV;
     float DIEM;
+};
+struct Dangky{
+    string MASV;
+    float DIEM;
+    bool HUYDK = false;
+    bool DADIEM = false;
 };
 
 struct nodeDK{

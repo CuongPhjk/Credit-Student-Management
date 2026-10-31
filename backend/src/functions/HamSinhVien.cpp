@@ -39,12 +39,20 @@ bool KiemTraThongTinSinhVien(const Sinhvien& sinhVien, string& loi) {
     }
     return true;
 }
-
+void ChenDau(PTRSV& dsSV, PTRSV nodeMoi){
+    if (nodeMoi==nullptr) return;
+    nodeMoi->next = dsSV;
+    dsSV = nodeMoi;
+}
+void ChenSau(PTRSV nodeTruoc, PTRSV nodeMoi) {
+    if (nodeTruoc == nullptr || nodeMoi == nullptr) return;
+    nodeMoi->next = nodeTruoc->next;
+    nodeTruoc->next = nodeMoi;
+}
 void ChenNodeSinhVienTheoTen(PTRSV& dsSV, PTRSV nodeMoi) {
     if (dsSV == nullptr
         || SoSanhSinhVienTheoTen(nodeMoi->sv, dsSV->sv) < 0) {
-        nodeMoi->next = dsSV;
-        dsSV = nodeMoi;
+        ChenDau(dsSV,nodeMoi);
         return;
     }
     PTRSV nodeTruoc = dsSV;
@@ -54,8 +62,20 @@ void ChenNodeSinhVienTheoTen(PTRSV& dsSV, PTRSV nodeMoi) {
            ) <= 0) {
         nodeTruoc = nodeTruoc->next;
     }
-    nodeMoi->next = nodeTruoc->next;
-    nodeTruoc->next = nodeMoi;
+    ChenSau(nodeTruoc,nodeMoi);
+}
+    void GoNodeSinhVien(PTRSV& dau, PTRSV nodeCanGo) {
+    if (dau == nodeCanGo) {
+        dau = nodeCanGo->next;
+    } else {
+        PTRSV truoc = dau;
+        while (truoc->next != nodeCanGo) {
+            truoc = truoc->next;
+        }
+        truoc->next = nodeCanGo->next;
+    }
+
+    nodeCanGo->next = nullptr;
 }
 
 }  // namespace
@@ -75,6 +95,9 @@ PTRSV TimSinhVienToanTruong(
     const string& maSV,
     int& viTriLop
 ) {
+    if(dsLop.n==0) {
+        return;
+    }
     viTriLop = -1;
     for (int i = 0; i < dsLop.n; ++i) {
         PTRSV ketQua = TimSinhVienTrongLop(dsLop.nodes[i].dssv, maSV);
@@ -149,7 +172,7 @@ bool HieuChinhSinhVien(
 ) {
     loi.clear();
     int viTriLop = -1;
-    PTRSV nodeCanSua = TimSinhVienToanTruong(dsLop, maSV, viTriLop);
+    PTRSV nodeCanSua = TimSinhVienToanTruong(dsLop, maSV, viTriLop); // loi
     if (nodeCanSua == nullptr) {
         loi = "Khong tim thay sinh vien.";
         return false;
@@ -159,15 +182,12 @@ bool HieuChinhSinhVien(
     if (!KiemTraThongTinSinhVien(daChuanHoa, loi)) {
         return false;
     }
+    PTRSV& dau = dsLop.nodes[viTriLop].dssv;
 
-    PTRSV* lienKet = &dsLop.nodes[viTriLop].dssv;
-    while (*lienKet != nodeCanSua) {
-        lienKet = &((*lienKet)->next);
-    }
-    *lienKet = nodeCanSua->next;
+    GoNodeSinhVien(dau,nodeCanSua);
     nodeCanSua->sv = daChuanHoa;
-    nodeCanSua->next = nullptr;
-    ChenNodeSinhVienTheoTen(dsLop.nodes[viTriLop].dssv, nodeCanSua);
+  
+    ChenNodeSinhVienTheoTen(dau, nodeCanSua);
     return true;
 }
 
@@ -176,7 +196,7 @@ bool SinhVienDaDangKy(const DS_LTC& dsLTC, const string& maSV) {
     for (int i = 0; i < dsLTC.n; ++i) {
         if (dsLTC.nodes[i] == nullptr) {
             continue;
-        }
+        } // xem lai lop tin chi
         for (PTRDK node = dsLTC.nodes[i]->dssvdk;
              node != nullptr;
              node = node->next) {
@@ -188,6 +208,7 @@ bool SinhVienDaDangKy(const DS_LTC& dsLTC, const string& maSV) {
     return false;
 }
 
+
 bool XoaSinhVien(
     DS_LOP& dsLop,
     const DS_LTC& dsLTC,
@@ -195,26 +216,34 @@ bool XoaSinhVien(
     string& loi
 ) {
     loi.clear();
+
     int viTriLop = -1;
-    PTRSV nodeCanXoa = TimSinhVienToanTruong(dsLop, maSV, viTriLop);
+
+    PTRSV nodeCanXoa =
+        TimSinhVienToanTruong(dsLop, maSV, viTriLop);
+
     if (nodeCanXoa == nullptr) {
         loi = "Khong tim thay sinh vien.";
         return false;
     }
+
     if (SinhVienDaDangKy(dsLTC, nodeCanXoa->sv.MASV)) {
         loi = "Khong the xoa sinh vien da co du lieu dang ky.";
         return false;
     }
-    PTRSV* lienKet = &dsLop.nodes[viTriLop].dssv;
-    while (*lienKet != nodeCanXoa) {
-        lienKet = &((*lienKet)->next);
-    }
-    *lienKet = nodeCanXoa->next;
+
+    PTRSV& dau = dsLop.nodes[viTriLop].dssv;
+
+    // Truong hop sinh vien nam dau danh sach
+    GoNodeSinhVien(dau,nodeCanXoa);
+
     delete nodeCanXoa;
+
     return true;
 }
 
-int DemSinhVien(PTRSV dsSV) {
+
+int DemSinhVien(PTRSV dsSV) { // xem lai xem co can ham nay ko
     int soLuong = 0;
     for (PTRSV node = dsSV; node != nullptr; node = node->next) {
         ++soLuong;

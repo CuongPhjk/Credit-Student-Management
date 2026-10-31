@@ -4,25 +4,13 @@
 #include "../../include/utils/XuLyChuoi.h"
 
 int TimViTriLop(const DS_LOP& dsLop, const string& maLop) {
-    const string maDaChuanHoa = ChuanHoaMa(maLop);
+     string maCanTim = ChuanHoaMa(maLop);
 
-    int trai = 0;
-    int phai = dsLop.n - 1;
-
-    while (trai <= phai) {
-        int giua = trai + (phai - trai) / 2;
-
-        if (dsLop.nodes[giua].MALOP == maDaChuanHoa) {
-            return giua;
-        }
-
-        if (dsLop.nodes[giua].MALOP < maDaChuanHoa) {
-            trai = giua + 1;
-        } else {
-            phai = giua - 1;
+    for (int i = 0; i < dsLop.n; ++i) {
+        if (dsLop.nodes[i].MALOP == maCanTim) {
+            return i;
         }
     }
-
     return -1;
 }
 
@@ -37,34 +25,34 @@ bool KiemTraTrungMaLop(const DS_LOP& dsLop, const string& maLop) {
 
 bool ThemLop(DS_LOP& dsLop, const Lop& lop, string& loi) {
     loi.clear();
+
     if (dsLop.n >= MAXLOP) {
         loi = "Danh sach lop da day.";
         return false;
     }
+
     Lop daChuanHoa = lop;
     daChuanHoa.MALOP = ChuanHoaMa(lop.MALOP);
     daChuanHoa.TENLOP = XoaKhoangTrangThua(lop.TENLOP);
     daChuanHoa.dssv = nullptr;
+
     if (!MaHopLe(daChuanHoa.MALOP, 15)) {
         loi = "Ma lop khong hop le, toi da 15 ky tu.";
         return false;
     }
+
     if (!TenLopHopLe(daChuanHoa.TENLOP, loi)) {
         return false;
     }
+
     if (KiemTraTrungMaLop(dsLop, daChuanHoa.MALOP)) {
         loi = "Ma lop da ton tai.";
         return false;
     }
 
-    int viTriChen = dsLop.n;
-    while (viTriChen > 0
-           && dsLop.nodes[viTriChen - 1].MALOP > daChuanHoa.MALOP) {
-        dsLop.nodes[viTriChen] = dsLop.nodes[viTriChen - 1];
-        --viTriChen;
-    }
-    dsLop.nodes[viTriChen] = daChuanHoa;
+    dsLop.nodes[dsLop.n] = daChuanHoa;
     ++dsLop.n;
+
     return true;
 }
 
