@@ -6,7 +6,7 @@ import unittest
 
 from bridge import (AppData, MonHoc, MonHocManager, Lop, SinhVien,
                     LopSinhVienManager, LopTinChi, LopTinChiManager,
-                    DangKyManager, DiemManager)
+                    DangKyManager)
 
 YEAR = f'{date.today().year}-{date.today().year + 1}'
 
@@ -23,12 +23,11 @@ class GroupedPersistenceTest(unittest.TestCase):
             'L1|Lớp một\nSV1|Nguyễn Văn|An|Nam|0901234567\n'
             'SV2|Trần Thị|Bình|Nữ|0912345678\n#\nL2|Lớp rỗng\n#\n', encoding='utf-8')
         self.credit_file.write_text(
-            f'1|MH1|{YEAR}|1|1|1|50|0\nSV1|0|0|0\n#\n'
+            f'1|MH1|{YEAR}|1|1|1|50|0\nSV1|0|0\n#\n'
             f'2|MH2|{YEAR}|1|1|1|50|0\n#\n', encoding='utf-8')
         self.data = AppData()
-        # Registration/score managers predate loading but must share its save path.
+        # The registration manager predates loading but must share its save path.
         self.registrations = DangKyManager(self.data)
-        self.scores = DiemManager(self.data)
         self.subjects = MonHocManager(self.data)
         self.students = LopSinhVienManager(self.data)
         self.credits = LopTinChiManager(self.data)
@@ -42,28 +41,18 @@ class GroupedPersistenceTest(unittest.TestCase):
     def snapshot(self):
         return {p.name: p.read_bytes() for p in self.root.glob('*.txt')}
 
-    def score_rows(self):
-        return self.scores.lay_danh_sach_sinh_vien(YEAR, 1, 'MH1', 1)
-
-    def test_interleaved_credit_registration_and_score_saves_preserve_children(self):
+    def test_interleaved_credit_registration_saves_preserve_children(self):
         untouched = (self.subject_file.read_bytes(), self.student_file.read_bytes())
         self.registrations.dang_ky(1, 'SV2')
-        self.scores.cap_nhat_danh_sach_diem(YEAR, 1, 'MH1', 1, [
-            {'ma_sv': 'SV1', 'diem': 0}, {'ma_sv': 'SV2', 'diem': 8.75},
-        ])
         self.credits.cap_nhat_lop_tin_chi(1, LopTinChi('MH1', YEAR, 1, 1, 1, 60))
         self.registrations.huy_dang_ky(1, 'SV2')
         text = self.credit_file.read_text(encoding='utf-8')
         self.assertIn(f'1|MH1|{YEAR}|1|1|1|60|0\n', text)
-        self.assertIn('SV1|0|0|1\n', text)
-        self.assertIn('SV2|8.75|1|1\n', text)
+        self.assertIn('SV1|0|0\n', text)
+        self.assertIn('SV2|-1|1\n', text)
         self.credits.doc_danh_sach_lop_tin_chi(str(self.credit_file))
         self.assertTrue(self.registrations.da_dang_ky(1, 'SV1'))
         self.assertFalse(self.registrations.da_dang_ky(1, 'SV2'))
-        rows = self.score_rows()
-        self.assertEqual(len(rows), 1)
-        self.assertTrue(rows[0]['da_co_diem'])
-        self.assertEqual(rows[0]['diem'], 0)
         self.assertEqual(untouched, (self.subject_file.read_bytes(), self.student_file.read_bytes()))
         self.assertEqual({p.name for p in self.root.iterdir()},
                          {'monhoc.txt', 'lopsinhvien.txt', 'loptinchi.txt'})
@@ -87,6 +76,14 @@ class GroupedPersistenceTest(unittest.TestCase):
         self.assertEqual(self.subject_file.read_bytes(), before['monhoc.txt'])
         self.assertEqual(self.credit_file.read_bytes(), before['loptinchi.txt'])
 
+    def test_other_managers_share_paths_loaded_through_appdata(self):
+        subjects = MonHocManager(self.data)
+        students = LopSinhVienManager(self.data)
+        subjects.them_mon_hoc(MonHoc('MH3', 'Mon ba', 3, 0))
+        students.them_lop(Lop('L3', 'Lop ba'))
+        self.assertIn('MH3|', self.subject_file.read_text(encoding='utf-8'))
+        self.assertIn('L3|', self.student_file.read_text(encoding='utf-8'))
+
     def test_subject_add_rewrites_snapshot_instead_of_appending(self):
         before = self.snapshot()
         self.subjects.them_mon_hoc(MonHoc('AAA', 'Môn mới', 2, 0))
@@ -96,7 +93,7 @@ class GroupedPersistenceTest(unittest.TestCase):
         self.assertEqual(self.student_file.read_bytes(), before['lopsinhvien.txt'])
         self.assertEqual(self.credit_file.read_bytes(), before['loptinchi.txt'])
 
-    def test_malformed_student_blocks_do_not_partially_replace_memory(self):
+    def test_malformed_student_blocks_clear_memory_and_allow_retry(self):
         invalid = [
             'L3|Lớp ba\n',  # Missing terminator.
             '#\n',
@@ -107,16 +104,21 @@ class GroupedPersistenceTest(unittest.TestCase):
         path = self.root / 'invalid-students.txt'
         for text in invalid:
             with self.subTest(text=text):
+                self.students.doc_danh_sach_lop_sinh_vien(str(self.student_file))
                 path.write_text(text, encoding='utf-8')
                 with self.assertRaises(RuntimeError):
                     self.students.doc_danh_sach_lop_sinh_vien(str(path))
-                self.assertEqual(self.students.tong_so_lop(), 2)
-                self.assertEqual(self.students.tong_so_sinh_vien(), 2)
+                self.assertEqual(self.students.tong_so_lop(), 0)
+                self.assertEqual(self.students.tong_so_sinh_vien(), 0)
+        self.students.doc_danh_sach_lop_sinh_vien(str(self.student_file))
+        self.students.doc_danh_sach_lop_sinh_vien(str(self.student_file))
+        self.assertEqual(self.students.tong_so_lop(), 2)
+        self.assertEqual(self.students.tong_so_sinh_vien(), 2)
         # A failed read must not redirect future saves to the bad file.
         self.students.them_lop(Lop('L3', 'Lớp ba'))
         self.assertIn('L3|', self.student_file.read_text(encoding='utf-8'))
 
-    def test_malformed_credit_blocks_preserve_registrations_and_save_path(self):
+    def test_malformed_credit_blocks_clear_memory_and_allow_retry(self):
         header = f'3|MH1|{YEAR}|1|2|1|50|0\n'
         invalid = [header, '#\n', header + 'SV1|nan|0|1\n#\n',
                    header + 'SV1|8|2|1\n#\n',
@@ -125,13 +127,17 @@ class GroupedPersistenceTest(unittest.TestCase):
         path = self.root / 'invalid-credits.txt'
         for text in invalid:
             with self.subTest(text=text):
+                self.credits.doc_danh_sach_lop_tin_chi(str(self.credit_file))
                 path.write_text(text, encoding='utf-8')
                 with self.assertRaises(RuntimeError):
                     self.credits.doc_danh_sach_lop_tin_chi(str(path))
-                self.assertEqual(self.credits.tong_so_lop_tin_chi(), 2)
-                self.assertTrue(self.registrations.da_dang_ky(1, 'SV1'))
+                self.assertEqual(self.credits.tong_so_lop_tin_chi(), 0)
+        self.credits.doc_danh_sach_lop_tin_chi(str(self.credit_file))
+        self.credits.doc_danh_sach_lop_tin_chi(str(self.credit_file))
+        self.assertEqual(self.credits.tong_so_lop_tin_chi(), 2)
+        self.assertTrue(self.registrations.da_dang_ky(1, 'SV1'))
         self.registrations.dang_ky(1, 'SV2')
-        self.assertIn('SV2|0|0|0', self.credit_file.read_text(encoding='utf-8'))
+        self.assertIn('SV2|-1|0', self.credit_file.read_text(encoding='utf-8'))
 
     def test_failed_writes_roll_back_all_managers_and_preserve_files(self):
         before = self.snapshot()
@@ -151,7 +157,6 @@ class GroupedPersistenceTest(unittest.TestCase):
             lambda: self.credits.xoa_lop_tin_chi(2),
             lambda: self.registrations.dang_ky(1, 'SV2'),
             lambda: self.registrations.huy_dang_ky(1, 'SV1'),
-            lambda: self.scores.cap_nhat_danh_sach_diem(YEAR, 1, 'MH1', 1, [{'ma_sv': 'SV1', 'diem': 9}]),
         ]
         for operation in operations:
             with self.assertRaises((ValueError, RuntimeError)):
@@ -166,12 +171,10 @@ class GroupedPersistenceTest(unittest.TestCase):
         self.assertEqual(self.credits.tim_lop_tin_chi(1).so_sv_max, 50)
         self.assertTrue(self.registrations.da_dang_ky(1, 'SV1'))
         self.assertFalse(self.registrations.da_dang_ky(1, 'SV2'))
-        self.assertFalse(self.score_rows()[0]['da_co_diem'])
-        self.assertEqual(self.score_rows()[0]['diem'], 0)
         for path in blockers:
             path.rmdir()
         self.registrations.dang_ky(1, 'SV2')
-        self.assertIn('SV2|0|0|0', self.credit_file.read_text(encoding='utf-8'))
+        self.assertIn('SV2|-1|0', self.credit_file.read_text(encoding='utf-8'))
         self.credits.them_lop_tin_chi(LopTinChi('MH1', YEAR, 1, 2, 1, 50))
         self.assertIsNotNone(self.credits.tim_lop_tin_chi(3))
 

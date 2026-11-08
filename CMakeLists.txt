@@ -29,24 +29,18 @@ add_library(credit_backend_core STATIC
     backend/src/functions/HamLop.cpp
     backend/src/functions/HamSinhVien.cpp
     backend/src/functions/HamDangKy.cpp
-    backend/src/functions/HamDiem.cpp
     backend/src/file/XuLyTep.cpp
     backend/src/manager/MonHocManager.cpp
     backend/src/manager/LopTinChiManager.cpp
     backend/src/manager/LopSinhVienManager.cpp
     backend/src/manager/DangKyManager.cpp
-    backend/src/manager/DiemManager.cpp
-    backend/src/utils/KiemTraDuLieu.cpp
-    backend/src/utils/XuLyChuoi.cpp
+    backend/src/utils/Utils.cpp
 )
 set_target_properties(credit_backend_core PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 target_include_directories(credit_backend_core PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/backend/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/backend/include/model"
-    "${CMAKE_CURRENT_SOURCE_DIR}/backend/include/functions"
-    "${CMAKE_CURRENT_SOURCE_DIR}/backend/manager"
+    "${CMAKE_CURRENT_SOURCE_DIR}/backend/src"
 )
 
 pybind11_add_module(_credit_backend bridge/Bindings.cpp)
@@ -67,12 +61,25 @@ if(MSVC)
     target_compile_options(credit_backend_core PRIVATE /W4 /utf-8)
     target_compile_options(_credit_backend PRIVATE /W4 /utf-8)
 else()
-    target_compile_options(credit_backend_core PRIVATE -Wall -Wextra -Wpedantic)
-    target_compile_options(_credit_backend PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(credit_backend_core PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+    target_compile_options(_credit_backend PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
 endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(test_student_sorting tests/cpp/test_student_sorting.cpp)
+    target_link_libraries(test_student_sorting PRIVATE credit_backend_core)
+    add_test(NAME test_student_sorting COMMAND test_student_sorting)
+    add_executable(test_list_exports tests/cpp/test_list_exports.cpp)
+    target_link_libraries(test_list_exports PRIVATE credit_backend_core)
+    add_test(NAME test_list_exports COMMAND test_list_exports)
+    add_executable(test_utils tests/cpp/test_utils.cpp)
+    target_link_libraries(test_utils PRIVATE credit_backend_core)
+    if(MSVC)
+        target_compile_options(test_utils PRIVATE /utf-8)
+    endif()
+    add_test(NAME test_utils COMMAND test_utils)
+
     add_executable(test_mon_hoc tests/cpp/test_subject.cpp)
     target_link_libraries(test_mon_hoc PRIVATE credit_backend_core)
     add_test(NAME test_mon_hoc COMMAND test_mon_hoc)
@@ -89,8 +96,5 @@ if(BUILD_TESTING)
     target_link_libraries(test_dang_ky PRIVATE credit_backend_core)
     add_test(NAME test_dang_ky COMMAND test_dang_ky)
 
-    add_executable(test_diem tests/cpp/test_score.cpp)
-    target_link_libraries(test_diem PRIVATE credit_backend_core)
-    add_test(NAME test_diem COMMAND test_diem)
 
 endif()

@@ -9,7 +9,6 @@ from PyQt6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget
 from bridge import (
     AppData,
     DangKyManager,
-    DiemManager,
     Lop,
     LopSinhVienManager,
     LopTinChi,
@@ -24,7 +23,6 @@ from frontend.pages import (
     CreditClassPage,
     DashboardPage,
     RegistrationPage,
-    ScorePage,
     SubjectPage,
 )
 
@@ -41,7 +39,6 @@ class MainWindow(QMainWindow):
         self.credit_class_manager = None
         self.class_student_manager = None
         self.registration_manager = None
-        self.score_manager = None
         load_error = None
         if backend_available():
             self.app_data = AppData()
@@ -49,7 +46,6 @@ class MainWindow(QMainWindow):
             self.credit_class_manager = LopTinChiManager(self.app_data)
             self.class_student_manager = LopSinhVienManager(self.app_data)
             self.registration_manager = DangKyManager(self.app_data)
-            self.score_manager = DiemManager(self.app_data)
             data_dir = Path(__file__).resolve().parents[1] / "backend" / "data"
             try:
                 self.subject_manager.doc_danh_sach_mon_hoc(
@@ -71,6 +67,7 @@ class MainWindow(QMainWindow):
             LopTinChi,
             self.subject_manager,
         )
+        self.credit_class_page.registration_manager = self.registration_manager
         self.class_student_page = ClassStudentPage(
             self.class_student_manager,
             Lop,
@@ -82,18 +79,12 @@ class MainWindow(QMainWindow):
             self.credit_class_manager,
             self.subject_manager,
         )
-        self.score_page = ScorePage(
-            self.score_manager,
-            self.credit_class_manager,
-            self.subject_manager,
-        )
         self.pages = QStackedWidget()
         self.pages.addWidget(self.dashboard_page)
         self.pages.addWidget(self.subject_page)
         self.pages.addWidget(self.credit_class_page)
         self.pages.addWidget(self.class_student_page)
         self.pages.addWidget(self.registration_page)
-        self.pages.addWidget(self.score_page)
         self.setCentralWidget(self.pages)
 
         self.dashboard_page.navigation_requested.connect(self.show_page)
@@ -101,7 +92,6 @@ class MainWindow(QMainWindow):
         self.credit_class_page.navigation_requested.connect(self.show_page)
         self.class_student_page.navigation_requested.connect(self.show_page)
         self.registration_page.navigation_requested.connect(self.show_page)
-        self.score_page.navigation_requested.connect(self.show_page)
         self.subject_page.subject_count_changed.connect(self._update_subject_count)
         self.credit_class_page.credit_class_count_changed.connect(
             self._update_credit_class_count
@@ -174,11 +164,6 @@ class MainWindow(QMainWindow):
             self.registration_page.select_page(
                 "registration", emit_signal=False
             )
-            return
-        if page_name == "score":
-            self.score_page.refresh()
-            self.pages.setCurrentWidget(self.score_page)
-            self.score_page.select_page("score", emit_signal=False)
             return
 
     def _refresh_dashboard_credit_classes(self):

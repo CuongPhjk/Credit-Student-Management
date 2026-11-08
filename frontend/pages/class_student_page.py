@@ -2,7 +2,7 @@
 
 import math
 
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -13,7 +13,6 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPushButton,
     QStackedWidget,
     QTableWidget,
@@ -32,7 +31,7 @@ from frontend.components.input_validation import (
     show_temporary_message,
     text_input_error,
 )
-from frontend.components.notification import Notification
+from frontend.components.notification import Notification, NotificationBanner, NotificationType
 from frontend.pages.dashboard_page import svg_label, svg_pixmap
 from frontend.pages.subject_page import SubjectPage
 
@@ -72,6 +71,15 @@ class ClassForm(EditorForm):
             self.name_input,
         )
         root.addLayout(form)
+        if not self._editing:
+            hint = QLabel(
+                "Mã lớp chỉ được chứa chữ cái, chữ số và ký tự -.\n"
+                "Tên lớp chỉ được chứa chữ cái, chữ số, khoảng trắng "
+                "và các ký tự + - . / ( ) & #."
+            )
+            hint.setObjectName("classInputHint")
+            hint.setWordWrap(True)
+            root.addWidget(hint)
         self.status_label = QLabel()
         self.status_label.setObjectName("dialogStatus")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -104,6 +112,8 @@ class ClassForm(EditorForm):
                 border: 1px solid #dc2626;
             }
             QLabel#fieldError { color: #dc2626; font-size: 12px; }
+            QLabel#studentInputHint { color: #64748b; font-size: 12px; }
+            QLabel#classInputHint { color: #64748b; font-size: 12px; }
             QLabel#dialogStatus[status="success"] {
                 color: #15803d; background: #dcfce7; padding: 7px;
                 border-radius: 5px; font-weight: 600;
@@ -126,8 +136,12 @@ class ClassForm(EditorForm):
         if not code.strip():
             show_field_error(self.code_input, self.code_error, "Vui lòng nhập mã lớp.")
             has_error = True
-        elif error := text_input_error(code):
-            show_field_error(self.code_input, self.code_error, f"Mã lớp {error}.")
+        elif any(not ("A" <= char <= "Z" or "a" <= char <= "z"
+                      or "0" <= char <= "9" or char == "-") for char in code):
+            show_field_error(
+                self.code_input, self.code_error,
+                "Mã lớp chỉ được chứa chữ cái, chữ số và ký tự -.",
+            )
             has_error = True
         if not name.strip():
             show_field_error(self.name_input, self.name_error, "Vui lòng nhập tên lớp.")
@@ -220,6 +234,15 @@ class StudentForm(ClassForm):
             self.phone_input,
         )
         root.addLayout(form)
+        if not self._editing:
+            hint = QLabel(
+                "Mã sinh viên chỉ được chứa chữ cái, chữ số.\n"
+                "Họ và tên chỉ được chứa chữ cái.\n"
+                "Số điện thoại chỉ được chứa chữ số, bắt đầu bằng 0 và dài từ 9 đến 11 số."
+            )
+            hint.setObjectName("studentInputHint")
+            hint.setWordWrap(True)
+            root.addWidget(hint)
         self.status_label = QLabel()
         self.status_label.setObjectName("dialogStatus")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -248,6 +271,13 @@ class StudentForm(ClassForm):
         root.addWidget(buttons)
         self._apply_dialog_style()
 
+    def _student_text_error(self, value, label, *, allow_spaces=False):
+        if any(not (char.isalpha() or (allow_spaces and char == " "))
+               for char in value):
+            suffix = "chữ cái và khoảng trắng giữa các từ" if allow_spaces else "chữ cái"
+            return f"{label} chỉ được chứa {suffix}."
+        return None
+
     def _validate_student(self):
         if not self._editing and not self.code_input.text().strip():
             self.reject()
@@ -263,20 +293,32 @@ class StudentForm(ClassForm):
             if not widget.text().strip():
                 show_field_error(widget, error_label, message)
                 has_error = True
+        code = self.code_input.text()
+        if code and any(not ("A" <= char <= "Z" or "a" <= char <= "z"
+                             or "0" <= char <= "9") for char in code):
+            show_field_error(
+                self.code_input, self.student_code_error,
+                "Mã sinh viên chỉ được chứa chữ cái, chữ số.",
+            )
+            has_error = True
         for widget, error_label, label in (
             (self.surname_input, self.surname_error, "Họ"),
             (self.given_name_input, self.given_name_error, "Tên"),
         ):
             value = widget.text()
-            if value and (error := text_input_error(value, allow_digits=False)):
-                show_field_error(widget, error_label, f"{label} {error}.")
+            if value and (error := self._student_text_error(
+                value, label, allow_spaces=widget is self.surname_input
+            )):
+                show_field_error(widget, error_label, error)
                 has_error = True
         phone = self.phone_input.text().strip()
-        if phone and (not phone.isdigit() or not 9 <= len(phone) <= 11):
+        if phone and (not phone.isascii() or not phone.isdigit()
+                      or not phone.startswith("0") or not 9 <= len(phone) <= 11):
             show_field_error(
                 self.phone_input,
                 self.phone_error,
-                "Số điện thoại phải gồm từ 9 đến 11 chữ số.",
+                "Số điện thoại không được chứa chữ; chỉ được chứa chữ số, "
+                "bắt đầu bằng 0 và dài từ 9 đến 11 số.",
             )
             has_error = True
         if has_error:
@@ -463,7 +505,7 @@ class StudentTable(ActionTable):
         widths = {0: 58, 1: 145, 3: 100, 4: 95, 5: 145, 6: 125}
         for column, width in widths.items():
             self.setColumnWidth(column, width)
-        self.empty_label = QLabel("Lớp chưa có sinh viên", self.viewport())
+        self.empty_label = QLabel("Không có dữ liệu", self.viewport())
         self.empty_label.setObjectName("subjectEmptyLabel")
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -509,7 +551,14 @@ class ClassStudentPage(SubjectPage):
         self.student_type = student_type
         self.selected_class_code = None
         self.current_student_page = 1
+        self._submitted_student_search = ""
         super().__init__(manager, class_type, parent)
+        self.class_delete_notice_timer = QTimer(self)
+        self.class_delete_notice_timer.setSingleShot(True)
+        self.class_delete_notice_timer.timeout.connect(self.class_delete_notice.hide)
+        self.student_delete_notice_timer = QTimer(self)
+        self.student_delete_notice_timer.setSingleShot(True)
+        self.student_delete_notice_timer.timeout.connect(self.student_delete_notice.hide)
         self.select_page("student", emit_signal=False)
 
     def _build_content(self):
@@ -569,6 +618,8 @@ class ClassStudentPage(SubjectPage):
         add_button.clicked.connect(self.add_class)
         filter_layout.addWidget(add_button, 0, Qt.AlignmentFlag.AlignBottom)
         layout.addWidget(filter_card)
+        self.class_delete_notice = NotificationBanner()
+        layout.addWidget(self.class_delete_notice)
 
         card = QFrame()
         card.setObjectName("subjectCard")
@@ -626,6 +677,8 @@ class ClassStudentPage(SubjectPage):
         add_button.clicked.connect(self.add_student)
         toolbar_layout.addWidget(add_button)
         layout.addWidget(toolbar)
+        self.student_delete_notice = NotificationBanner()
+        layout.addWidget(self.student_delete_notice)
 
         card = QFrame()
         card.setObjectName("subjectCard")
@@ -636,11 +689,25 @@ class ClassStudentPage(SubjectPage):
         self.student_search_input = QLineEdit()
         apply_text_validator(self.student_search_input)
         self.student_search_input.setPlaceholderText(
-            "Tìm theo mã, họ tên hoặc số điện thoại..."
+            "Tìm theo mã sinh viên hoặc tên..."
         )
         self.student_search_input.setClearButtonEnabled(True)
-        self.student_search_input.textChanged.connect(self.apply_student_filter)
+        self.student_search_input.setObjectName("subjectSearchInput")
         search_row.addWidget(self.student_search_input, 1)
+        self.student_search_button = QPushButton("Tìm kiếm")
+        self.student_search_button.setObjectName("primaryButton")
+        self.student_search_button.setIcon(QIcon(svg_pixmap("search.svg", "#ffffff", 20)))
+        self.student_search_button.setIconSize(QSize(20, 20))
+        self.student_search_button.clicked.connect(self.submit_student_search)
+        search_row.addWidget(self.student_search_button)
+        search_row.addWidget(QLabel("Thứ tự:"))
+        self.student_sort = QComboBox()
+        self.student_sort.addItem("Tên A → Z", "name")
+        self.student_sort.addItem("Mã SV A → Z", "code_asc")
+        self.student_sort.addItem("Mã SV Z → A", "code_desc")
+        self.student_sort.setMinimumContentsLength(16)
+        self.student_sort.currentIndexChanged.connect(self.change_student_order)
+        search_row.addWidget(self.student_sort)
         card_layout.addLayout(search_row)
         self.student_table = StudentTable()
         self.student_table.edit_requested.connect(self.edit_student)
@@ -652,7 +719,7 @@ class ClassStudentPage(SubjectPage):
         notice_layout.setContentsMargins(12, 7, 12, 7)
         notice_layout.addWidget(svg_label("info.svg", "#278df0", 24))
         notice_layout.addWidget(QLabel(
-            "Danh sách luôn được chèn đúng thứ tự tăng dần theo tên, họ và mã sinh viên."
+            "Chọn thứ tự theo tên hoặc mã sinh viên ở phía trên."
         ), 1)
         card_layout.addWidget(notice)
         footer = QHBoxLayout()
@@ -686,7 +753,7 @@ class ClassStudentPage(SubjectPage):
     def apply_filters(self, *_args, reset_page=True):
         if reset_page:
             self.current_page = 1
-        text = self.search_input.text().strip().casefold()
+        text = self._submitted_search_text
         filtered = [
             item for item in getattr(self, "_source_classes", [])
             if not text
@@ -712,7 +779,14 @@ class ClassStudentPage(SubjectPage):
         if class_item is None:
             Notification.warning(self, "Không tìm thấy lớp đã chọn.")
             return
+        if self.selected_class_code != class_code:
+            self.release_student_order()
+        self.student_sort.blockSignals(True)
+        self.student_sort.setCurrentIndex(0)
+        self.student_sort.blockSignals(False)
         self.selected_class_code = class_code
+        self._submitted_student_search = ""
+        self.student_search_input.clear()
         self.current_student_page = 1
         self.student_heading.setText(f"Sinh viên lớp {class_code}")
         self.student_class_name.setText(class_item.ten_lop)
@@ -720,6 +794,7 @@ class ClassStudentPage(SubjectPage):
         self.refresh_students()
 
     def show_class_list(self):
+        self.release_student_order()
         self.editor_host.close_panel(immediate=True)
         self.selected_class_code = None
         self.content_stack.setCurrentIndex(0)
@@ -730,24 +805,43 @@ class ClassStudentPage(SubjectPage):
             self._source_students = []
         else:
             try:
-                self._source_students = list(
-                    self.manager.lay_danh_sach_sinh_vien(self.selected_class_code)
-                )
+                order = self.student_sort.currentData()
+                if order == "code_asc":
+                    getter = self.manager.lay_sinh_vien_ma_tang
+                elif order == "code_desc":
+                    getter = self.manager.lay_sinh_vien_ma_giam
+                else:
+                    getter = self.manager.lay_danh_sach_sinh_vien
+                self._source_students = list(getter(self.selected_class_code))
             except (RuntimeError, ValueError) as error:
                 Notification.error(self, str(error))
                 self._source_students = []
         self.apply_student_filter(reset_page=False)
 
+
+
+
+    def release_student_order(self):
+        if self.manager is not None:
+            self.manager.giai_phong_thu_tu_sinh_vien()
+
+    def change_student_order(self, _index=None):
+        self.current_student_page = 1
+        self.refresh_students()
+
+    def submit_student_search(self):
+        self._submitted_student_search = self.student_search_input.text().strip().casefold()
+        self.apply_student_filter()
+
     def apply_student_filter(self, *_args, reset_page=True):
         if reset_page:
             self.current_student_page = 1
-        text = self.student_search_input.text().strip().casefold()
+        text = self._submitted_student_search
         filtered = [
             student for student in getattr(self, "_source_students", [])
             if not text
             or text in student.ma_sv.casefold()
             or text in student.ho_ten.casefold()
-            or text in student.so_dt.casefold()
         ]
         page_count = max(1, math.ceil(len(filtered) / self.STUDENT_PAGE_SIZE))
         self.current_student_page = min(self.current_student_page, page_count)
@@ -820,9 +914,16 @@ class ClassStudentPage(SubjectPage):
             except (RuntimeError, ValueError) as error:
                 show_temporary_message(dialog.status_label, str(error), status="error", duration=4000)
                 return False
-            Notification.success(self, "Đã cập nhật lớp.")
             self.refresh()
-            return True
+            show_temporary_message(dialog.status_label, "Đã cập nhật lớp.")
+            close_timer = QTimer(dialog)
+            close_timer.setSingleShot(True)
+            close_timer.timeout.connect(
+                lambda: self.editor_host.close_panel()
+                if self.editor_host.form is dialog else None
+            )
+            close_timer.start(850)
+            return False
 
         self.editor_host.open_form(dialog, on_save=save)
 
@@ -834,9 +935,11 @@ class ClassStudentPage(SubjectPage):
         try:
             self.manager.xoa_lop(class_code)
         except (AttributeError, RuntimeError, ValueError) as error:
-            Notification.error(self, str(error))
+            self.class_delete_notice.set_message(str(error), NotificationType.ERROR)
+            self.class_delete_notice_timer.start(3000)
             return
-        Notification.success(self, "Đã xóa lớp.")
+        self.class_delete_notice.set_message("Đã xóa lớp.", NotificationType.SUCCESS)
+        self.class_delete_notice_timer.start(3000)
         self.refresh()
 
     def add_student(self):
@@ -886,8 +989,11 @@ class ClassStudentPage(SubjectPage):
         try:
             self.manager.xoa_sinh_vien(student_code)
         except (AttributeError, RuntimeError, ValueError) as error:
-            Notification.error(self, str(error))
+            self.student_delete_notice.set_message(str(error), NotificationType.ERROR)
+            self.student_delete_notice_timer.start(3000)
             return
+        self.student_delete_notice_timer.stop()
+        self.student_delete_notice.hide()
         Notification.success(self, "Đã xóa sinh viên.")
         self.refresh()
 

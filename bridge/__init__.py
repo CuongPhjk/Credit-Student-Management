@@ -24,7 +24,6 @@ try:
     from ._credit_backend import (
         AppData,
         DangKyManager,
-        DiemManager,
         LopTinChi,
         LopTinChiManager,
         Lop,
@@ -37,7 +36,6 @@ except ImportError as exc:
     _IMPORT_ERROR = exc
     AppData = None
     DangKyManager = None
-    DiemManager = None
     MonHoc = None
     MonHocManager = None
     LopTinChi = None
@@ -65,7 +63,6 @@ def require_backend() -> None:
 __all__ = [
     "AppData",
     "DangKyManager",
-    "DiemManager",
     "MonHoc",
     "MonHocManager",
     "LopTinChi",

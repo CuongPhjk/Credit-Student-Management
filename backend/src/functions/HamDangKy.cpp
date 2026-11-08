@@ -1,14 +1,9 @@
-#include "../../include/functions/HamDangKy.h"
+#include "../KhaiBao.h"
 
-#include "../../include/functions/HamSinhVien.h"
-#include "../../include/utils/XuLyChuoi.h"
-
-namespace {
 
 Loptinchi* TimLopTinChiNoiBo(DS_LTC& dsLTC, int maLopTC) {
     for (int i = 0; i < dsLTC.n; ++i) {
-        if (dsLTC.nodes[i] != nullptr
-            && dsLTC.nodes[i]->MALOPTC == maLopTC) {
+        if (dsLTC.nodes[i]->MALOPTC == maLopTC) {
             return dsLTC.nodes[i];
         }
     }
@@ -25,10 +20,8 @@ int DemDangKyHieuLuc(PTRDK danhSach) {
     return soLuong;
 }
 
-}  // namespace
-
-PTRDK TimDangKy(PTRDK dsDangKy, const string& maSV) {
-    const string maDaChuanHoa = ChuanHoaMa(maSV);
+PTRDK TimDangKy(PTRDK dsDangKy, string maSV) {
+    string maDaChuanHoa = ChuanHoaMa(maSV);
     for (PTRDK node = dsDangKy; node != nullptr; node = node->next) {
         if (node->dk.MASV == maDaChuanHoa) {
             return node;
@@ -38,27 +31,26 @@ PTRDK TimDangKy(PTRDK dsDangKy, const string& maSV) {
 }
 
 bool SinhVienDangKyLopTinChi(
-    const Loptinchi& lopTinChi,
-    const string& maSV
+    Loptinchi lopTinChi,
+    string maSV
 ) {
     PTRDK dangKy = TimDangKy(lopTinChi.dssvdk, maSV);
     return dangKy != nullptr && !dangKy->dk.HUYDK;
 }
 
 bool SinhVienDaDangKyMonTrongHocKy(
-    const DS_LTC& dsLTC,
-    const string& maSV,
-    const string& maMH,
-    const string& nienKhoa,
+    DS_LTC& dsLTC,
+    string maSV,
+    string maMH,
+    string nienKhoa,
     int hocKy,
     int maLopTCBoQua
 ) {
-    const string maMonDaChuanHoa = ChuanHoaMa(maMH);
-    const string nienKhoaDaChuanHoa = XoaKhoangTrangDauCuoi(nienKhoa);
+    string maMonDaChuanHoa = ChuanHoaMa(maMH);
+    string nienKhoaDaChuanHoa = XoaKhoangTrangDauCuoi(nienKhoa);
     for (int i = 0; i < dsLTC.n; ++i) {
-        const Loptinchi* lop = dsLTC.nodes[i];
-        if (lop != nullptr
-            && lop->MALOPTC != maLopTCBoQua
+        Loptinchi* lop = dsLTC.nodes[i];
+        if (lop->MALOPTC != maLopTCBoQua
             && !lop->HUYLOP
             && lop->MAMH == maMonDaChuanHoa
             && lop->NIENKHOA == nienKhoaDaChuanHoa
@@ -70,112 +62,101 @@ bool SinhVienDaDangKyMonTrongHocKy(
     return false;
 }
 
-bool LopTinChiConCho(const Loptinchi& lopTinChi) {
+bool LopTinChiConCho(Loptinchi lopTinChi) {
     return !lopTinChi.HUYLOP
         && DemDangKyHieuLuc(lopTinChi.dssvdk) < lopTinChi.SOSVMAX;
 }
 
 bool DangKyLopTinChi(
     DS_LTC& dsLTC,
-    const DS_LOP& dsLop,
+    DS_LOP& dsLop,
     int maLopTC,
-    const string& maSV,
+    string maSV,
     string& loi
 ) {
     loi.clear();
-    const string maDaChuanHoa = ChuanHoaMa(maSV);
-    if (!KiemTraTrungMaSinhVien(dsLop, maDaChuanHoa)) {
-        loi = "Ma sinh vien khong ton tai.";
+    string maDaChuanHoa = ChuanHoaMa(maSV);
+    int viTriLop;
+    if (TimSinhVienToanTruong(dsLop, maDaChuanHoa, viTriLop) == nullptr) {
+        loi = "Mã sinh viên không tồn tại.";
         return false;
     }
     Loptinchi* lop = TimLopTinChiNoiBo(dsLTC, maLopTC);
     if (lop == nullptr) {
-        loi = "Khong tim thay lop tin chi.";
+        loi = "Không tìm thấy lớp tín chỉ.";
         return false;
     }
     if (lop->HUYLOP) {
-        loi = "Lop tin chi da bi huy.";
+        loi = "Lớp tín chỉ đã bị hủy.";
         return false;
     }
     PTRDK dangKyCu = TimDangKy(lop->dssvdk, maDaChuanHoa);
     if (dangKyCu != nullptr && !dangKyCu->dk.HUYDK) {
-        loi = "Sinh vien da dang ky lop tin chi nay.";
+        loi = "Sinh viên đã đăng ký lớp tín chỉ này.";
         return false;
     }
     if (!LopTinChiConCho(*lop)) {
-        loi = "Lop tin chi da het cho.";
+        loi = "Lớp tín chỉ đã hết chỗ.";
         return false;
     }
     if (SinhVienDaDangKyMonTrongHocKy(
         dsLTC, maDaChuanHoa, lop->MAMH,
         lop->NIENKHOA, lop->HOCKY, lop->MALOPTC
     )) {
-        loi = "Sinh vien da dang ky mon hoc nay trong cung hoc ky.";
+        loi = "Sinh viên đã đăng ký môn học này trong cùng học kỳ.";
         return false;
     }
     if (dangKyCu != nullptr) {
         dangKyCu->dk.HUYDK = false;
-        dangKyCu->dk.DIEM = 0.0F;
-        dangKyCu->dk.DADIEM = false;
+        dangKyCu->dk.DIEM = -1.0F;
         return true;
     }
 
-    PTRDK nodeMoi = new nodeDK{{maDaChuanHoa, 0.0F, false}, nullptr};
-    PTRDK* viTriChen = &lop->dssvdk;
-    while (*viTriChen != nullptr
-           && (*viTriChen)->dk.MASV < maDaChuanHoa) {
-        viTriChen = &((*viTriChen)->next);
+    PTRDK nodeMoi = new nodeDK{{maDaChuanHoa, -1.0F, false}, nullptr};
+    if (lop->dssvdk == nullptr) {
+        lop->dssvdk = nodeMoi;
+    } else {
+        PTRDK cuoi = lop->dssvdk;
+        while (cuoi->next != nullptr) cuoi = cuoi->next;
+        cuoi->next = nodeMoi;
     }
-    nodeMoi->next = *viTriChen;
-    *viTriChen = nodeMoi;
     return true;
 }
 
 bool HuyDangKy(
     DS_LTC& dsLTC,
     int maLopTC,
-    const string& maSV,
+    string maSV,
     string& loi
 ) {
     loi.clear();
     Loptinchi* lop = TimLopTinChiNoiBo(dsLTC, maLopTC);
     if (lop == nullptr) {
-        loi = "Khong tim thay lop tin chi.";
+        loi = "Không tìm thấy lớp tín chỉ.";
         return false;
     }
     PTRDK dangKy = TimDangKy(lop->dssvdk, maSV);
     if (dangKy == nullptr || dangKy->dk.HUYDK) {
-        loi = "Sinh vien chua dang ky lop tin chi nay.";
+        loi = "Sinh viên chưa đăng ký lớp tín chỉ này.";
         return false;
     }
     dangKy->dk.HUYDK = true;
     return true;
 }
 
-int LayDanhSachDangKy(
-    const Loptinchi& lopTinChi,
-    Dangky dsKetQua[],
-    int kichThuocToiDa,
-    bool layCaDaHuy
+PTRDK* LayDanhSachDangKy(
+    Loptinchi& lopTinChi, int& soLuong
 ) {
-    if (dsKetQua == nullptr || kichThuocToiDa <= 0) {
-        return 0;
+    soLuong = 0;
+    for (PTRDK node = lopTinChi.dssvdk; node != nullptr; node = node->next) {
+        ++soLuong;
     }
-    int soLuong = 0;
-    for (PTRDK node = lopTinChi.dssvdk;
-         node != nullptr && soLuong < kichThuocToiDa;
-         node = node->next) {
-        if (layCaDaHuy || !node->dk.HUYDK) {
-            dsKetQua[soLuong++] = node->dk;
-        }
+    if (soLuong == 0) return nullptr;
+    PTRDK* ketQua = new PTRDK[soLuong];
+    int i = 0;
+    for (PTRDK node = lopTinChi.dssvdk; node != nullptr; node = node->next) {
+        ketQua[i++] = node;
     }
-    return soLuong;
+    return ketQua;
 }
 
-void GiaiPhongDanhSachDangKy(PTRDK& dsDangKy) {
-    while (dsDangKy != nullptr) {
-        PTRDK nodeCanXoa = dsDangKy;
-        dsDangKy = dsDangKy->next;
-        delete nodeCanXoa;
-    }
-}

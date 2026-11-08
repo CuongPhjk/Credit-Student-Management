@@ -96,6 +96,8 @@ class EditorWorkflowTest(unittest.TestCase):
         form.name_input.setText('Mon hai moi')
         self.save(form)
         self.assertEqual(self.subjects.tim_mon_hoc('MH2').ten_mh, 'Mon hai moi')
+        self.assertEqual(form.status_label.text(), 'Đã cập nhật môn học.')
+        QTest.qWait(1200)
         self.assertIsNone(page.editor_host.form)
 
     def test_class_and_student_add_edit(self):
@@ -145,8 +147,9 @@ class EditorWorkflowTest(unittest.TestCase):
         page.group_filter.setCurrentIndex(page.group_filter.findData(2))
         page.semester_filter.setCurrentIndex(page.semester_filter.findData(1))
         page.search_input.setText('Mon mot')
+        page.submit_search()
         self.assertEqual(page.table.rowCount(), 1)
-        self.assertEqual(page.table.item(0, 3).text(), 'Mon mot')
+        self.assertEqual(page.table.item(0, 2).text(), 'Mon mot')
         page.semester_filter.setCurrentIndex(page.semester_filter.findData(2))
         self.assertEqual(page.table.rowCount(), 0)
         page.refresh()
@@ -223,16 +226,16 @@ class EditorWorkflowTest(unittest.TestCase):
         registered.selectRow(0)
         self.assertEqual(registered.selected_class_id(), item.ma_lop_tc)
         self.assertEqual(registered.item(0, 0).text(), 'MH1')
-        self.assertEqual(registered.columnCount(), 4)
-        available.set_classes([item], {'MH1': 'Mon mot'}, set())
+        self.assertEqual(registered.columnCount(), 3)
+        available.set_classes([item], {'MH1': 'Mon mot'})
         chosen = []
         available.selection_changed.connect(chosen.append)
         available.button_group.buttons()[0].setChecked(True)
         self.assertEqual(chosen, [item.ma_lop_tc])
         self.assertEqual(available.item(0, 1).text(), 'MH1')
-        self.assertEqual(available.columnCount(), 7)
-        available.set_classes([item], {'MH1': 'Mon mot'}, {'MH1'}, {item.ma_lop_tc})
-        self.assertFalse(available.button_group.buttons()[0].isEnabled())
+        self.assertEqual(available.columnCount(), 6)
+        available.set_classes([item], {'MH1': 'Mon mot'})
+        self.assertTrue(available.button_group.buttons()[0].isEnabled())
 
 
 if __name__ == '__main__':

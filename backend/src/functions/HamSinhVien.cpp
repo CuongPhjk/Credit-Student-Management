@@ -1,12 +1,6 @@
-#include "../../include/functions/HamSinhVien.h"
+#include "../KhaiBao.h"
 
-#include "../../include/functions/HamLop.h"
-#include "../../include/utils/KiemTraDuLieu.h"
-#include "../../include/utils/XuLyChuoi.h"
-
-namespace {
-
-Sinhvien ChuanHoaSinhVien(const Sinhvien& sinhVien) {
+Sinhvien ChuanHoaSinhVien(Sinhvien sinhVien) {
     Sinhvien ketQua = sinhVien;
     ketQua.MASV = ChuanHoaMa(sinhVien.MASV);
     ketQua.HO = ChuanHoaHoTen(sinhVien.HO);
@@ -16,38 +10,15 @@ Sinhvien ChuanHoaSinhVien(const Sinhvien& sinhVien) {
     return ketQua;
 }
 
-bool KiemTraThongTinSinhVien(const Sinhvien& sinhVien, string& loi) {
-    if (!MaSinhVienHopLe(sinhVien.MASV)) {
-        loi = "Ma sinh vien khong hop le, toi da 15 ky tu.";
-        return false;
-    }
-    if (sinhVien.HO.empty() || sinhVien.TEN.empty()
-        || DemSoKyTuUtf8(sinhVien.HO) > 40
-        || DemSoKyTuUtf8(sinhVien.TEN) > 15
-        || sinhVien.HO.find('|') != string::npos
-        || sinhVien.TEN.find('|') != string::npos) {
-        loi = "Ho hoac ten sinh vien khong hop le.";
-        return false;
-    }
-    if (!PhaiHopLe(sinhVien.PHAI)) {
-        loi = u8"Phai chi duoc la Nam hoac Nữ.";
-        return false;
-    }
-    if (!SoDienThoaiHopLe(sinhVien.SODT)) {
-        loi = "So dien thoai phai gom tu 9 den 11 chu so.";
-        return false;
-    }
-    return true;
+void ChenDau(PTRSV& dsSV, PTRSV p){
+    if (p==nullptr) return;
+    p->next = dsSV;
+    dsSV = p;
 }
-void ChenDau(PTRSV& dsSV, PTRSV nodeMoi){
-    if (nodeMoi==nullptr) return;
-    nodeMoi->next = dsSV;
-    dsSV = nodeMoi;
-}
-void ChenSau(PTRSV nodeTruoc, PTRSV nodeMoi) {
-    if (nodeTruoc == nullptr || nodeMoi == nullptr) return;
-    nodeMoi->next = nodeTruoc->next;
-    nodeTruoc->next = nodeMoi;
+void ChenSau(PTRSV p, PTRSV q) {
+    if (p == nullptr || q == nullptr) return;
+    q->next = p->next;
+    p->next = q;
 }
 void ChenNodeSinhVienTheoTen(PTRSV& dsSV, PTRSV nodeMoi) {
     if (dsSV == nullptr
@@ -64,24 +35,22 @@ void ChenNodeSinhVienTheoTen(PTRSV& dsSV, PTRSV nodeMoi) {
     }
     ChenSau(nodeTruoc,nodeMoi);
 }
-    void GoNodeSinhVien(PTRSV& dau, PTRSV nodeCanGo) {
-    if (dau == nodeCanGo) {
-        dau = nodeCanGo->next;
-    } else {
-        PTRSV truoc = dau;
-        while (truoc->next != nodeCanGo) {
-            truoc = truoc->next;
-        }
-        truoc->next = nodeCanGo->next;
-    }
 
-    nodeCanGo->next = nullptr;
+void GoNodeSinhVien(PTRSV& dsSV, PTRSV q) {
+    if (dsSV == q) {
+        dsSV = q->next;
+    } else {
+        PTRSV p = dsSV;
+        while (p->next != q) {
+            p = p->next;
+        }
+        p->next = q->next;
+    }
+    q->next = nullptr;
 }
 
-}  // namespace
-
-PTRSV TimSinhVienTrongLop(PTRSV dsSV, const string& maSV) {
-    const string maDaChuanHoa = ChuanHoaMa(maSV);
+PTRSV TimSinhVienTrongLop(PTRSV dsSV, string maSV) {
+    string maDaChuanHoa = ChuanHoaMa(maSV);
     for (PTRSV node = dsSV; node != nullptr; node = node->next) {
         if (node->sv.MASV == maDaChuanHoa) {
             return node;
@@ -92,12 +61,9 @@ PTRSV TimSinhVienTrongLop(PTRSV dsSV, const string& maSV) {
 
 PTRSV TimSinhVienToanTruong(
     DS_LOP& dsLop,
-    const string& maSV,
+    string maSV,
     int& viTriLop
 ) {
-    if(dsLop.n==0) {
-        return;
-    }
     viTriLop = -1;
     for (int i = 0; i < dsLop.n; ++i) {
         PTRSV ketQua = TimSinhVienTrongLop(dsLop.nodes[i].dssv, maSV);
@@ -109,21 +75,7 @@ PTRSV TimSinhVienToanTruong(
     return nullptr;
 }
 
-bool KiemTraTrungMaSinhVien(const DS_LOP& dsLop, const string& maSV) {
-    const string maDaChuanHoa = ChuanHoaMa(maSV);
-    for (int i = 0; i < dsLop.n; ++i) {
-        for (PTRSV node = dsLop.nodes[i].dssv;
-             node != nullptr;
-             node = node->next) {
-            if (node->sv.MASV == maDaChuanHoa) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-int SoSanhSinhVienTheoTen(const Sinhvien& sv1, const Sinhvien& sv2) {
+int SoSanhSinhVienTheoTen(Sinhvien sv1, Sinhvien sv2) {
     int ketQua = SoSanhKhongPhanBietHoaThuong(sv1.TEN, sv2.TEN);
     if (ketQua != 0) {
         return ketQua;
@@ -135,68 +87,65 @@ int SoSanhSinhVienTheoTen(const Sinhvien& sv1, const Sinhvien& sv2) {
     return SoSanhKhongPhanBietHoaThuong(sv1.MASV, sv2.MASV);
 }
 
-void ChenSinhVienTheoTen(PTRSV& dsSV, const Sinhvien& sinhVien) {
+void ChenSinhVienTheoTen(Lop& lop, Sinhvien sinhVien) {
     PTRSV nodeMoi = new nodeSV{sinhVien, nullptr};
-    ChenNodeSinhVienTheoTen(dsSV, nodeMoi);
+    ChenNodeSinhVienTheoTen(lop.dssv, nodeMoi);
+    ++lop.soSinhVien;
 }
 
 bool ThemSinhVien(
     DS_LOP& dsLop,
-    const string& maLop,
-    const Sinhvien& sinhVien,
+    string maLop,
+    Sinhvien sinhVien,
     string& loi
 ) {
     loi.clear();
     Lop* lop = TimLop(dsLop, maLop);
     if (lop == nullptr) {
-        loi = "Ma lop khong ton tai.";
+        loi = "Mã lớp không tồn tại.";
         return false;
     }
-    const Sinhvien daChuanHoa = ChuanHoaSinhVien(sinhVien);
-    if (!KiemTraThongTinSinhVien(daChuanHoa, loi)) {
+    Sinhvien sv = ChuanHoaSinhVien(sinhVien);
+    int viTriLop;
+    if (TimSinhVienToanTruong(dsLop, sv.MASV, viTriLop) != nullptr) {
+        loi = "Mã sinh viên đã tồn tại trong toàn trường.";
         return false;
     }
-    if (KiemTraTrungMaSinhVien(dsLop, daChuanHoa.MASV)) {
-        loi = "Ma sinh vien da ton tai trong toan truong.";
-        return false;
-    }
-    ChenSinhVienTheoTen(lop->dssv, daChuanHoa);
+    ChenSinhVienTheoTen(*lop, sv);
+    ++dsLop.phienBan;
     return true;
 }
 
 bool HieuChinhSinhVien(
     DS_LOP& dsLop,
-    const string& maSV,
-    const Sinhvien& duLieuMoi,
+    string maSV,
+    Sinhvien duLieuMoi,
     string& loi
 ) {
     loi.clear();
-    int viTriLop = -1;
-    PTRSV nodeCanSua = TimSinhVienToanTruong(dsLop, maSV, viTriLop); // loi
+    int viTriLop;
+    PTRSV nodeCanSua = TimSinhVienToanTruong(dsLop, maSV, viTriLop); 
     if (nodeCanSua == nullptr) {
-        loi = "Khong tim thay sinh vien.";
+        loi = "Không tìm thấy sinh viên.";
         return false;
     }
     Sinhvien daChuanHoa = ChuanHoaSinhVien(duLieuMoi);
     daChuanHoa.MASV = nodeCanSua->sv.MASV;
-    if (!KiemTraThongTinSinhVien(daChuanHoa, loi)) {
-        return false;
+    if (SoSanhSinhVienTheoTen(nodeCanSua->sv, daChuanHoa) == 0) {
+        nodeCanSua->sv = daChuanHoa;
+        return true;
     }
-    PTRSV& dau = dsLop.nodes[viTriLop].dssv;
 
-    GoNodeSinhVien(dau,nodeCanSua);
+    PTRSV& dau = dsLop.nodes[viTriLop].dssv;
+    GoNodeSinhVien(dau, nodeCanSua);
     nodeCanSua->sv = daChuanHoa;
-  
     ChenNodeSinhVienTheoTen(dau, nodeCanSua);
     return true;
 }
 
-bool SinhVienDaDangKy(const DS_LTC& dsLTC, const string& maSV) {
-    const string maDaChuanHoa = ChuanHoaMa(maSV);
+bool SinhVienDaDangKy(DS_LTC& dsLTC, string maSV) {
+    string maDaChuanHoa = ChuanHoaMa(maSV);
     for (int i = 0; i < dsLTC.n; ++i) {
-        if (dsLTC.nodes[i] == nullptr) {
-            continue;
-        } // xem lai lop tin chi
         for (PTRDK node = dsLTC.nodes[i]->dssvdk;
              node != nullptr;
              node = node->next) {
@@ -208,53 +157,65 @@ bool SinhVienDaDangKy(const DS_LTC& dsLTC, const string& maSV) {
     return false;
 }
 
-
 bool XoaSinhVien(
     DS_LOP& dsLop,
-    const DS_LTC& dsLTC,
-    const string& maSV,
+    DS_LTC& dsLTC,
+    string maSV,
     string& loi
 ) {
     loi.clear();
-
-    int viTriLop = -1;
-
-    PTRSV nodeCanXoa =
-        TimSinhVienToanTruong(dsLop, maSV, viTriLop);
-
+    int viTriLop;
+    PTRSV nodeCanXoa = TimSinhVienToanTruong(dsLop, maSV, viTriLop);
     if (nodeCanXoa == nullptr) {
-        loi = "Khong tim thay sinh vien.";
+        loi = "Không tìm thấy sinh viên.";
         return false;
     }
-
     if (SinhVienDaDangKy(dsLTC, nodeCanXoa->sv.MASV)) {
-        loi = "Khong the xoa sinh vien da co du lieu dang ky.";
+        loi = "Không thể xóa sinh viên đã có dữ liệu đăng ký.";
         return false;
     }
-
     PTRSV& dau = dsLop.nodes[viTriLop].dssv;
-
-    // Truong hop sinh vien nam dau danh sach
     GoNodeSinhVien(dau,nodeCanXoa);
-
     delete nodeCanXoa;
-
+    --dsLop.nodes[viTriLop].soSinhVien;
+    ++dsLop.phienBan;
     return true;
 }
 
 
-int DemSinhVien(PTRSV dsSV) { // xem lai xem co can ham nay ko
-    int soLuong = 0;
-    for (PTRSV node = dsSV; node != nullptr; node = node->next) {
-        ++soLuong;
-    }
-    return soLuong;
+PTRSV* LayDanhSachSinhVien(Lop& lop, int& soLuong) {
+    soLuong = lop.soSinhVien;
+    if (soLuong == 0) return nullptr;
+    PTRSV* ketQua = new PTRSV[soLuong];
+    int i = 0;
+    for (PTRSV node = lop.dssv; node != nullptr; node = node->next)
+        ketQua[i++] = node;
+    return ketQua;
 }
 
-void GiaiPhongDanhSachSinhVien(PTRSV& dsSV) {
-    while (dsSV != nullptr) {
-        PTRSV nodeCanXoa = dsSV;
-        dsSV = dsSV->next;
-        delete nodeCanXoa;
+
+static void TronConTroSinhVien(PTRSV ds[], PTRSV tam[], int trai, int giua, int phai) {
+    int i = trai, j = giua + 1, k = trai;
+    while (i <= giua && j <= phai) {
+        if (ds[i]->sv.MASV <= ds[j]->sv.MASV) tam[k++] = ds[i++];
+        else tam[k++] = ds[j++];
     }
+    while (i <= giua) tam[k++] = ds[i++];
+    while (j <= phai) tam[k++] = ds[j++];
+    for (int viTri = trai; viTri <= phai; ++viTri) ds[viTri] = tam[viTri];
+}
+
+static void MergeSortConTroSinhVien(PTRSV ds[], PTRSV tam[], int trai, int phai) {
+    if (trai >= phai) return;
+    int giua = trai + (phai - trai) / 2;
+    MergeSortConTroSinhVien(ds, tam, trai, giua);
+    MergeSortConTroSinhVien(ds, tam, giua + 1, phai);
+    TronConTroSinhVien(ds, tam, trai, giua, phai);
+}
+
+void SapXepConTroSinhVienTheoMa(PTRSV danhSach[], int soLuong) {
+    if (soLuong < 2) return;
+    PTRSV* tam = new PTRSV[soLuong];
+    MergeSortConTroSinhVien(danhSach, tam, 0, soLuong - 1);
+    delete[] tam;
 }
