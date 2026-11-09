@@ -1,4 +1,5 @@
 #include "../KhaiBao.h"
+#include "Undo.h"
 
 
 namespace {
@@ -32,6 +33,8 @@ bool DangKyManager::dangKy(
     std::string maSV,
     std::string& loi
 ) {
+    GiaoDichUndo undo(appData_, maLopTC,
+        "Đăng ký " + ChuanHoaMa(maSV) + " vào lớp tín chỉ " + to_string(maLopTC));
     Loptinchi* lop = TimLopTinChiTheoMa(
         appData_.dsLopTinChi, maLopTC
     );
@@ -44,6 +47,7 @@ bool DangKyManager::dangKy(
         return false;
     }
     if (luu(loi)) {
+        undo.ghiNhan();
         return true;
     }
     if (lop != nullptr) {
@@ -62,6 +66,8 @@ bool DangKyManager::huyDangKy(
     std::string maSV,
     std::string& loi
 ) {
+    GiaoDichUndo undo(appData_, maLopTC,
+        "Hủy đăng ký " + ChuanHoaMa(maSV) + " ở lớp tín chỉ " + to_string(maLopTC));
     Loptinchi* lop = TimLopTinChiTheoMa(
         appData_.dsLopTinChi, maLopTC
     );
@@ -71,6 +77,7 @@ bool DangKyManager::huyDangKy(
         return false;
     }
     if (luu(loi)) {
+        undo.ghiNhan();
         return true;
     }
     PTRDK dangKySau = lop == nullptr ? nullptr : TimDangKy(lop->dssvdk, maSV);

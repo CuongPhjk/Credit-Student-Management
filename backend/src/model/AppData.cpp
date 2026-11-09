@@ -51,6 +51,7 @@ AppData::~AppData() {
 }
 
 void AppData::clear() {
+    ClearUndo(undoStack);
     tenFileMonHoc.clear();
     tenFileLopSinhVien.clear();
     tenFileLopTinChi.clear();

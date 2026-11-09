@@ -1,4 +1,5 @@
 #include "../KhaiBao.h"
+#include "Undo.h"
 
 #include <string>
 
@@ -10,6 +11,7 @@ bool MonHocManager::docDanhSachMonHoc(
     std::string tenFile,
     std::string& loi
 ) {
+    ClearUndo(appData_.undoStack);
     boThuTuTheoTen();
     if (!DocDanhSachMonHoc(tenFile, appData_.dsMonHoc, appData_.n, loi)) {
         return false;
@@ -19,6 +21,8 @@ bool MonHocManager::docDanhSachMonHoc(
 }
 
 bool MonHocManager::themMonHoc(Monhoc monHoc, std::string& loi) {
+    GiaoDichUndo undo(appData_, DoiTuongUndo::MonHoc, monHoc.MAMH,
+        "Thêm môn học " + ChuanHoaMa(monHoc.MAMH));
     loi.clear();
     if (!ThemMonHoc(appData_.dsMonHoc, appData_.n, monHoc, loi)) {
         return false;
@@ -26,6 +30,7 @@ bool MonHocManager::themMonHoc(Monhoc monHoc, std::string& loi) {
     boThuTuTheoTen();
     if (appData_.tenFileMonHoc.empty()
         || GhiDanhSachMonHoc(appData_.tenFileMonHoc, appData_.dsMonHoc, loi)) {
+        undo.ghiNhan();
         return true;
     }
 
@@ -55,6 +60,9 @@ bool MonHocManager::capNhatMonHoc(
     }
     Monhoc duLieuCu = nodeHienTai->mh;
 
+    GiaoDichUndo undo(appData_, DoiTuongUndo::MonHoc, maMH,
+        "Sửa môn học " + normalizedCode);
+
     if (!HieuChinhMonHoc(
         appData_.dsMonHoc,
         normalizedCode,
@@ -68,6 +76,7 @@ bool MonHocManager::capNhatMonHoc(
     }
     if (appData_.tenFileMonHoc.empty()
         || GhiDanhSachMonHoc(appData_.tenFileMonHoc, appData_.dsMonHoc, loi)) {
+        undo.ghiNhan();
         return true;
     }
 
@@ -84,6 +93,8 @@ bool MonHocManager::capNhatMonHoc(
 }
 
 bool MonHocManager::xoaMonHoc(std::string maMH, std::string& loi) {
+    GiaoDichUndo undo(appData_, DoiTuongUndo::MonHoc, maMH,
+        "Xóa môn học " + ChuanHoaMa(maMH));
     loi.clear();
     std::string normalizedCode = ChuanHoaMa(maMH);
     treeMH nodeHienTai = TimMonHoc(appData_.dsMonHoc, normalizedCode);
@@ -103,6 +114,7 @@ bool MonHocManager::xoaMonHoc(std::string maMH, std::string& loi) {
     boThuTuTheoTen();
     if (appData_.tenFileMonHoc.empty()
         || GhiDanhSachMonHoc(appData_.tenFileMonHoc, appData_.dsMonHoc, loi)) {
+        undo.ghiNhan();
         return true;
     }
 

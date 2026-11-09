@@ -748,7 +748,12 @@ class ClassStudentPage(SubjectPage):
             self.student_count_changed.emit(self.manager.tong_so_sinh_vien())
         self.apply_filters(reset_page=False)
         if self.selected_class_code:
-            self.refresh_students()
+            class_item = self.manager.tim_lop(self.selected_class_code)
+            if class_item is None:
+                self.show_class_list()
+            else:
+                self.student_class_name.setText(class_item.ten_lop)
+                self.refresh_students()
 
     def apply_filters(self, *_args, reset_page=True):
         if reset_page:

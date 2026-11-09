@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget
 
 from bridge import (
@@ -25,10 +25,12 @@ from frontend.pages import (
     RegistrationPage,
     SubjectPage,
 )
+from frontend.components.notification import Notification
+from frontend.components.topbar import TopBar
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, data_dir=None):
         super().__init__(parent)
         self.setWindowTitle("Hệ thống quản lý tín chỉ sinh viên")
         self.setMinimumSize(1050, 680)
@@ -46,7 +48,8 @@ class MainWindow(QMainWindow):
             self.credit_class_manager = LopTinChiManager(self.app_data)
             self.class_student_manager = LopSinhVienManager(self.app_data)
             self.registration_manager = DangKyManager(self.app_data)
-            data_dir = Path(__file__).resolve().parents[1] / "backend" / "data"
+            data_dir = (Path(data_dir) if data_dir is not None
+                        else Path(__file__).resolve().parents[1] / "backend" / "data")
             try:
                 self.subject_manager.doc_danh_sach_mon_hoc(
                     str(data_dir / "monhoc.txt")
@@ -86,6 +89,23 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self.class_student_page)
         self.pages.addWidget(self.registration_page)
         self.setCentralWidget(self.pages)
+
+        self.undo_action = QAction("Hoàn tác", self)
+        self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
+        self.undo_action.setAutoRepeat(False)
+        self.undo_action.triggered.connect(self.undo_last_action)
+        self.addAction(self.undo_action)
+        for topbar in self.findChildren(TopBar):
+            topbar.set_undo_action(self.undo_action)
+        for signal in (
+            self.subject_page.subject_count_changed,
+            self.credit_class_page.credit_class_count_changed,
+            self.class_student_page.class_count_changed,
+            self.class_student_page.student_count_changed,
+            self.registration_page.registration_changed,
+        ):
+            signal.connect(self._update_undo_state)
+        self._update_undo_state()
 
         self.dashboard_page.navigation_requested.connect(self.show_page)
         self.subject_page.navigation_requested.connect(self.show_page)
@@ -136,6 +156,7 @@ class MainWindow(QMainWindow):
             self.show_page("credit_class")
             QTimer.singleShot(0, self.credit_class_page.add_credit_class)
             return
+
         if page_name == "dashboard":
             self._refresh_dashboard_credit_classes()
             self.pages.setCurrentWidget(self.dashboard_page)
@@ -165,6 +186,37 @@ class MainWindow(QMainWindow):
                 "registration", emit_signal=False
             )
             return
+
+    def _update_undo_state(self, *_args):
+        count = self.app_data.so_thao_tac_undo if self.app_data is not None else 0
+        self.undo_action.setEnabled(count > 0)
+        self.undo_action.setText(f"Hoàn tác ({count})" if count else "Hoàn tác")
+        description = self.app_data.mo_ta_undo if count else "Chưa có thao tác để hoàn tác"
+        self.undo_action.setToolTip(f"{description} — Ctrl+Z")
+
+    def undo_last_action(self):
+        if self.app_data is None:
+            return
+        description = self.app_data.mo_ta_undo
+        try:
+            self.app_data.undo()
+        except (RuntimeError, ValueError) as error:
+            # Rollback co the tao lai node; nap lai cac ban sao hien thi.
+            self._refresh_after_undo(close_editors=False)
+            Notification.error(self, str(error))
+            return
+        self._refresh_after_undo(close_editors=True)
+        Notification.success(self, f"Đã hoàn tác: {description}")
+
+    def _refresh_after_undo(self, *, close_editors):
+        for page in (self.subject_page, self.credit_class_page, self.class_student_page):
+            # Dong form cu de khong luu de len du lieu vua phuc hoi.
+            if close_editors:
+                page.editor_host.close_panel(immediate=True)
+            page.refresh()
+        self.registration_page.refresh()
+        self._refresh_dashboard_credit_classes()
+        self._update_undo_state()
 
     def _refresh_dashboard_credit_classes(self):
         if self.credit_class_manager is None:

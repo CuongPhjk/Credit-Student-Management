@@ -9,7 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 
 execute_process(
-    COMMAND "${Python_EXECUTABLE}" -m pybind11 --cmakedir
+    COMMAND "${Python_EXECUTABLE}" -c "import pybind11; print(pybind11.get_cmake_dir())"
     OUTPUT_VARIABLE PYBIND11_CMAKE_DIR
     OUTPUT_STRIP_TRAILING_WHITESPACE
     RESULT_VARIABLE PYBIND11_CMAKE_RESULT
@@ -24,6 +24,7 @@ find_package(pybind11 CONFIG REQUIRED)
 
 add_library(credit_backend_core STATIC
     backend/src/model/AppData.cpp
+    backend/src/manager/Undo.cpp
     backend/src/functions/HamMonHoc.cpp
     backend/src/functions/HamLopTinChi.cpp
     backend/src/functions/HamLop.cpp

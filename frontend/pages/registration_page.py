@@ -166,6 +166,8 @@ class RegisteredClassTable(QTableWidget):
 class RegistrationPage(SubjectPage):
     """Tìm sinh viên, đăng ký và hủy lớp tín chỉ theo học kỳ."""
 
+    registration_changed = pyqtSignal()
+
     def __init__(
         self,
         registration_manager=None,
@@ -418,7 +420,10 @@ class RegistrationPage(SubjectPage):
     def refresh(self):
         self._populate_years()
         if self.current_student is not None:
-            self._load_tables()
+            info = self.class_student_manager.tim_thong_tin_sinh_vien(
+                self.current_student.ma_sv
+            )
+            self._display_student(info)
         else:
             self.available_table.set_classes([], {})
             self.registered_table.set_classes([], {})
@@ -468,6 +473,9 @@ class RegistrationPage(SubjectPage):
         except (AttributeError, RuntimeError, ValueError) as error:
             self._show_page_notice(str(error))
             return
+        self._display_student(info)
+
+    def _display_student(self, info):
         if info is None:
             self.current_student = None
             self.current_class_code = ""
@@ -574,6 +582,7 @@ class RegistrationPage(SubjectPage):
             return
         self._load_tables()
         self._show_page_notice("Đăng ký lớp tín chỉ thành công.", NotificationType.SUCCESS)
+        self.registration_changed.emit()
 
 
 

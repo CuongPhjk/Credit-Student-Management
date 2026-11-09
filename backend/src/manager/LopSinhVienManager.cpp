@@ -1,4 +1,5 @@
 #include "../KhaiBao.h"
+#include "Undo.h"
 
 
 LopSinhVienManager::LopSinhVienManager(AppData& appData)
@@ -8,6 +9,7 @@ bool LopSinhVienManager::docDanhSachLopSinhVien(
     std::string tenFile,
     std::string& loi
 ) {
+    ClearUndo(appData_.undoStack);
     giaiPhongThuTuSinhVien();
     if (!DocDanhSachLopSinhVien(tenFile, appData_.dsLop, loi)) {
         return false;
@@ -22,11 +24,14 @@ bool LopSinhVienManager::luu(std::string& loi) {
 }
 
 bool LopSinhVienManager::themLop(Lop lop, std::string& loi) {
+    GiaoDichUndo undo(appData_, DoiTuongUndo::Lop, lop.MALOP,
+        "Thêm lớp " + ChuanHoaMa(lop.MALOP));
     if (!ThemLop(appData_.dsLop, lop, loi)) {
         return false;
     }
     giaiPhongThuTuSinhVien();
     if (luu(loi)) {
+        undo.ghiNhan();
         return true;
     }
     std::string loiKhoiPhuc;
@@ -45,10 +50,13 @@ bool LopSinhVienManager::capNhatLop(
         return false;
     }
     std::string tenCu = lop->TENLOP;
+    GiaoDichUndo undo(appData_, DoiTuongUndo::Lop, maLop,
+        "Sửa lớp " + ChuanHoaMa(maLop));
     if (!HieuChinhLop(appData_.dsLop, maLop, tenLopMoi, loi)) {
         return false;
     }
     if (luu(loi)) {
+        undo.ghiNhan();
         return true;
     }
     std::string loiKhoiPhuc;
@@ -66,11 +74,14 @@ bool LopSinhVienManager::xoaLop(
         return false;
     }
     Lop duLieuCu = *lop;
+    GiaoDichUndo undo(appData_, DoiTuongUndo::Lop, maLop,
+        "Xóa lớp " + ChuanHoaMa(maLop));
     if (!XoaLop(appData_.dsLop, maLop, loi)) {
         return false;
     }
     giaiPhongThuTuSinhVien();
     if (luu(loi)) {
+        undo.ghiNhan();
         return true;
     }
     std::string loiKhoiPhuc;
@@ -103,11 +114,14 @@ bool LopSinhVienManager::themSinhVien(
     Sinhvien sinhVien,
     std::string& loi
 ) {
+    GiaoDichUndo undo(appData_, DoiTuongUndo::SinhVien, sinhVien.MASV,
+        "Thêm sinh viên " + ChuanHoaMa(sinhVien.MASV));
     if (!ThemSinhVien(appData_.dsLop, maLop, sinhVien, loi)) {
         return false;
     }
     giaiPhongThuTuSinhVien();
     if (luu(loi)) {
+        undo.ghiNhan();
         return true;
     }
     std::string loiKhoiPhuc;
@@ -132,10 +146,13 @@ bool LopSinhVienManager::capNhatSinhVien(
         return false;
     }
     Sinhvien duLieuCu = node->sv;
+    GiaoDichUndo undo(appData_, DoiTuongUndo::SinhVien, maSV,
+        "Sửa sinh viên " + ChuanHoaMa(maSV));
     if (!HieuChinhSinhVien(appData_.dsLop, maSV, duLieuMoi, loi)) {
         return false;
     }
     if (luu(loi)) {
+        undo.ghiNhan();
         return true;
     }
     std::string loiKhoiPhuc;
@@ -149,6 +166,8 @@ bool LopSinhVienManager::xoaSinhVien(
     std::string maSV,
     std::string& loi
 ) {
+    GiaoDichUndo undo(appData_, DoiTuongUndo::SinhVien, maSV,
+        "Xóa sinh viên " + ChuanHoaMa(maSV));
     int viTriLop = -1;
     PTRSV node = TimSinhVienToanTruong(
         appData_.dsLop, maSV, viTriLop
@@ -165,6 +184,7 @@ bool LopSinhVienManager::xoaSinhVien(
     }
     giaiPhongThuTuSinhVien();
     if (luu(loi)) {
+        undo.ghiNhan();
         return true;
     }
     ChenSinhVienTheoTen(

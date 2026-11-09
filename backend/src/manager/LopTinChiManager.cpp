@@ -1,4 +1,5 @@
 #include "../KhaiBao.h"
+#include "Undo.h"
 
 
 namespace {
@@ -21,6 +22,7 @@ bool LopTinChiManager::docDanhSachLopTinChi(
     std::string tenFile,
     std::string& loi
 ) {
+    ClearUndo(appData_.undoStack);
     if (!DocDanhSachLopTinChi(tenFile, appData_.dsLopTinChi, loi)) {
         return false;
     }
@@ -40,6 +42,8 @@ bool LopTinChiManager::themLopTinChi(
     std::string& loi
 ) {
     int maTiepTheoCu = appData_.dsLopTinChi.maTiepTheo;
+    GiaoDichUndo undo(appData_, maTiepTheoCu,
+        "Thêm lớp tín chỉ " + to_string(maTiepTheoCu));
     if (!ThemLopTinChi(
         appData_.dsLopTinChi, appData_.dsMonHoc, lopTinChi, loi
     )) {
@@ -48,6 +52,7 @@ bool LopTinChiManager::themLopTinChi(
     int maMoi = appData_.dsLopTinChi
         .nodes[appData_.dsLopTinChi.n - 1]->MALOPTC;
     if (luu(loi)) {
+        undo.ghiNhan();
         return true;
     }
     std::string loiKhoiPhuc;
@@ -67,6 +72,7 @@ bool LopTinChiManager::capNhatLopTinChi(
         return false;
     }
     Loptinchi duLieuCu = *hienTai;
+    GiaoDichUndo undo(appData_, maLopTC, "Sửa lớp tín chỉ " + to_string(maLopTC));
     if (!HieuChinhLopTinChi(
         appData_.dsLopTinChi, appData_.dsMonHoc,
         maLopTC, duLieuMoi, loi
@@ -74,6 +80,7 @@ bool LopTinChiManager::capNhatLopTinChi(
         return false;
     }
     if (luu(loi)) {
+        undo.ghiNhan();
         return true;
     }
     std::string loiKhoiPhuc;
@@ -85,6 +92,7 @@ bool LopTinChiManager::capNhatLopTinChi(
 }
 
 bool LopTinChiManager::xoaLopTinChi(int maLopTC, std::string& loi) {
+    GiaoDichUndo undo(appData_, maLopTC, "Xóa lớp tín chỉ " + to_string(maLopTC));
     Loptinchi* hienTai = timTheoMa(appData_.dsLopTinChi, maLopTC);
     if (hienTai == nullptr) {
         loi = "Không tìm thấy lớp tín chỉ.";
@@ -95,6 +103,7 @@ bool LopTinChiManager::xoaLopTinChi(int maLopTC, std::string& loi) {
         return false;
     }
     if (luu(loi)) {
+        undo.ghiNhan();
         return true;
     }
 
@@ -166,8 +175,12 @@ bool LopTinChiManager::huyLopThieuSiSo(
             ++i;
         }
         if (i == danhSach.size()) {
+            GiaoDichUndo undo(appData_, maDaXacNhan, "Hủy lớp tín chỉ thiếu sĩ số");
             for (auto& muc : danhSach) muc.lop->HUYLOP = true;
-            if (luu(loi)) return true;
+            if (luu(loi)) {
+                undo.ghiNhan();
+                return true;
+            }
 
             for (auto& muc : danhSach) muc.lop->HUYLOP = false;
             return false;

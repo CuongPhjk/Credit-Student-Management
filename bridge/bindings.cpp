@@ -488,7 +488,17 @@ PYBIND11_MODULE(_credit_backend, module) {
 
     py::class_<AppData>(module, "AppData")
         .def(py::init<>())
-        .def("clear", &AppData::clear);
+        .def("clear", &AppData::clear)
+        .def_property_readonly("so_thao_tac_undo", [](const AppData& data) {
+            return data.undoStack.count;
+        })
+        .def_property_readonly("mo_ta_undo", &MoTaUndo)
+        .def("undo", [](AppData& data) {
+            std::string loi;
+            if (!ThucHienUndo(data, loi)) throw py::value_error(loi);
+            return true;
+        })
+        .def("clear_undo", [](AppData& data) { ClearUndo(data.undoStack); });
 
     py::class_<MonHocManager>(module, "MonHocManager")
         .def(

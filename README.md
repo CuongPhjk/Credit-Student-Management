@@ -14,6 +14,7 @@ Thành viên nhóm:
 | Lớp và sinh viên | Tìm kiếm, thêm, sửa, xóa lớp niên chế; xem danh sách và quản lý sinh viên trong từng lớp. |
 | Lớp tín chỉ | Mở, tìm kiếm, lọc theo niên khóa/nhóm/học kỳ, sửa và xóa lớp tín chỉ. |
 | Đăng ký học | Tra cứu sinh viên, xem lớp đang mở theo niên khóa và học kỳ, đăng ký hoặc hủy đăng ký. |
+| Hoàn tác (Undo) | Khôi phục thao tác thêm, sửa, xóa và thay đổi đăng ký gần nhất bằng nút trên thanh đầu trang hoặc Ctrl+Z. |
 
 Giao diện kiểm tra dữ liệu nhập (rỗng, độ dài, ký tự, định dạng và khoảng số) trước khi gọi C++. Backend giữ kiểm tra nghiệp vụ như trùng mã, dữ liệu tồn tại và điều kiện sửa/xóa/đăng ký. Luồng đọc file kiểm tra dữ liệu riêng vì không đi qua form. Các hàm thêm/sửa C++ giả định đầu vào đã được giao diện xác nhận hợp lệ. Một số ràng buộc chính:
 
@@ -22,6 +23,16 @@ Giao diện kiểm tra dữ liệu nhập (rỗng, độ dài, ký tự, định
 - Sinh viên không thể đăng ký hai nhóm của cùng một môn trong cùng niên khóa và học kỳ, đăng ký vào lớp đã hủy hoặc lớp đã đủ chỗ.
 - Không thể xóa môn học đã được dùng bởi lớp tín chỉ, lớp tín chỉ đã có dữ liệu đăng ký, lớp niên chế còn sinh viên, hoặc sinh viên đã có dữ liệu đăng ký.
 - Dữ liệu đăng ký vẫn giữ trường điểm: `DIEM = -1` biểu thị chưa nhập điểm; `0` là điểm 0 đã nhập. Chức năng nhập điểm hiện được lưu riêng trong patch.
+
+## Hoàn tác (Undo)
+
+- Nhấn **Hoàn tác (N)** trên thanh đầu trang hoặc **Ctrl+Z** để hoàn tác thao tác đã lưu gần nhất. Di chuột vào nút để xem mô tả thao tác; `N` là số thao tác còn trong lịch sử. Trong ô nhập văn bản, Ctrl+Z vẫn hoàn tác nội dung đang gõ; dùng nút Hoàn tác để hoàn tác dữ liệu đã lưu.
+- Lịch sử dùng chung cho môn học, lớp niên chế, sinh viên, lớp tín chỉ và đăng ký/hủy đăng ký, theo thứ tự mới nhất trước (LIFO). Hủy đồng thời các lớp thiếu sĩ số là một bước Undo.
+- Khi hoàn tác, chương trình lưu lại tệp liên quan, cập nhật các bảng và thống kê, đóng biểu mẫu đang mở. Sinh viên được đưa lại vào đúng thứ tự tên; lớp được phục hồi đúng vị trí và mã; điểm và trạng thái đăng ký được giữ nguyên.
+- Thao tác lỗi hoặc sửa mà không thay đổi dữ liệu không tạo lịch sử. Nếu lưu sau Undo thất bại, dữ liệu hiện tại và bước Undo được giữ lại để thử lại.
+- Lịch sử chỉ tồn tại trong phiên chạy, được xóa khi gọi đọc lại tệp (kể cả lần đọc lỗi vì quá trình đọc có thể đã thay dữ liệu), `AppData.clear()` hoặc thoát chương trình. Chưa hỗ trợ Redo.
+
+Backend dùng `UndoNode`/`UndoStack` liên kết đơn với `PushUndo`, `PopUndo`, `ClearUndo` và `ThucHienUndo`, tương tự ví dụ tham khảo. Phần triển khai nằm trong `backend/src/manager/Undo.h` và `Undo.cpp`; các manager chụp dữ liệu trước thao tác và đẩy vào stack sau khi lưu thành công. Binding cung cấp `AppData.undo()`, `so_thao_tac_undo`, `mo_ta_undo` và `clear_undo()`. Gọi hàm lõi trực tiếp không ghi lịch sử; các thao tác của ứng dụng đi qua manager.
 
 ## Cài đặt và chạy
 

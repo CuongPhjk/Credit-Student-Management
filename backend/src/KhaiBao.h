@@ -74,11 +74,25 @@ struct DS_LOP {
     unsigned long long phienBan = 0;
 };
 
+struct UndoNode;
+
+// Stack lien ket LIFO dung chung cho tat ca manager trong mot phien lam viec.
+struct UndoStack {
+    UndoNode* top = nullptr;
+    int count = 0;
+
+    UndoStack() = default;
+    ~UndoStack();
+    UndoStack(const UndoStack&) = delete;
+    UndoStack& operator=(const UndoStack&) = delete;
+};
+
 // ==========================================
 // APP DATA (IN-MEMORY CENTRAL STORE)
 // ==========================================
 
 struct AppData {
+    UndoStack undoStack;
     treeMH dsMonHoc = nullptr;
     unsigned long long phienBanMonHoc = 0;
     int n = 0;
@@ -94,6 +108,10 @@ struct AppData {
     AppData& operator=(const AppData&) = delete;
     void clear();
 };
+
+void ClearUndo(UndoStack& stack);
+bool ThucHienUndo(AppData& appData, string& loi);
+string MoTaUndo(const AppData& appData);
 
 // ==========================================
 // UTILS
