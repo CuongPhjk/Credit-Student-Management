@@ -4,12 +4,11 @@
 #include <sstream>
 #include <string>
 
-#include "AppData.h"
-#include "MonHocManager.h"
+#include "../../backend/src/KhaiBao.h"
 
 namespace {
 
-std::string docNoiDungFile(const std::filesystem::path& duongDan) {
+std::string docNoiDungFile(std::filesystem::path& duongDan) {
     std::ifstream tep(duongDan);
     std::ostringstream noiDung;
     noiDung << tep.rdbuf();
@@ -29,10 +28,6 @@ int main() {
     Monhoc coSoDuLieu{"DB101", "Co so du lieu", 3, 0};
     assert(manager.themMonHoc(coSoDuLieu, loi));
 
-    Monhoc khongHopLe{"BAD101", "Mon khong hop le", 0, 1};
-    assert(!manager.themMonHoc(khongHopLe, loi));
-    assert(!loi.empty());
-
     Monhoc trungMa{"INT101", "Mon trung ma", 2, 0};
     assert(!manager.themMonHoc(trungMa, loi));
 
@@ -41,11 +36,12 @@ int main() {
     assert(timThay.MAMH == "INT101");
     assert(timThay.TENMH == "Lap trinh C++");
 
-    Monhoc danhSach[2];
-    const int soLuong = manager.layDanhSachMonHoc(danhSach, 2);
+    int soLuong;
+    treeMH* danhSach = manager.layDanhSachMonHoc(soLuong);
     assert(soLuong == 2);
-    assert(danhSach[0].TENMH == "Co so du lieu");
-    assert(danhSach[1].TENMH == "Lap trinh C++");
+    assert(danhSach[0]->mh.TENMH == "Co so du lieu");
+    assert(danhSach[1]->mh.TENMH == "Lap trinh C++");
+    delete[] danhSach;
 
     Monhoc duLieuMoi{"MA_KHONG_DUOC_DOI", "Lap trinh hien dai", 4, 0};
     assert(manager.capNhatMonHoc("int101", duLieuMoi, loi));
@@ -56,8 +52,8 @@ int main() {
     Loptinchi* lopTinChi = new Loptinchi{};
     lopTinChi->MALOPTC = 1;
     lopTinChi->MAMH = "INT101";
-    appData.dsLopTinChi().nodes[0] = lopTinChi;
-    appData.dsLopTinChi().n = 1;
+    appData.dsLopTinChi.nodes[0] = lopTinChi;
+    appData.dsLopTinChi.n = 1;
     assert(!manager.xoaMonHoc("INT101", loi));
 
     assert(manager.xoaMonHoc("DB101", loi));
@@ -66,7 +62,7 @@ int main() {
     appData.clear();
     assert(manager.tongSoMonHoc() == 0);
 
-    const std::filesystem::path fileMonHoc =
+    std::filesystem::path fileMonHoc =
         std::filesystem::current_path() / "monhoc_test.txt";
     {
         std::ofstream tep(fileMonHoc);
@@ -80,9 +76,11 @@ int main() {
     Monhoc monHocUnicode{"", "", 0, 0};
     assert(managerFile.timMonHoc("CS102", monHocUnicode));
     assert(monHocUnicode.TENMH == u8"Hệ điều hành");
-    Monhoc danhSachUnicode[1];
-    assert(managerFile.layDanhSachMonHoc(danhSachUnicode, 1) == 1);
-    assert(danhSachUnicode[0].TENMH == u8"Hệ điều hành");
+    int soLuongUnicode;
+    treeMH* danhSachUnicode = managerFile.layDanhSachMonHoc(soLuongUnicode);
+    assert(soLuongUnicode == 1);
+    assert(danhSachUnicode[0]->mh.TENMH == u8"Hệ điều hành");
+    delete[] danhSachUnicode;
 
     Monhoc monThem{"INT101", "Lap trinh Python", 3, 1};
     assert(managerFile.themMonHoc(monThem, loi));

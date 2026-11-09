@@ -1,13 +1,9 @@
-#include "../../manager/DangKyManager.h"
+#include "../KhaiBao.h"
 
-#include "../../include/file/XuLyTep.h"
-#include "../../include/functions/HamDangKy.h"
-#include "../../include/functions/HamLopTinChi.h"
-#include "../../include/utils/XuLyChuoi.h"
 
 namespace {
 
-void XoaDangKyNoiBo(Loptinchi& lop, const std::string& maSV) {
+void XoaDangKyNoiBo(Loptinchi& lop, std::string maSV) {
     PTRDK* lienKet = &lop.dssvdk;
     while (*lienKet != nullptr && (*lienKet)->dk.MASV != maSV) {
         lienKet = &((*lienKet)->next);
@@ -24,26 +20,26 @@ void XoaDangKyNoiBo(Loptinchi& lop, const std::string& maSV) {
 DangKyManager::DangKyManager(AppData& appData)
     : appData_(appData) {}
 
-bool DangKyManager::luu(std::string& loi) const {
-    return appData_.tenFileLopTinChi().empty()
+bool DangKyManager::luu(std::string& loi) {
+    return appData_.tenFileLopTinChi.empty()
         || GhiDanhSachLopTinChi(
-            appData_.tenFileLopTinChi(), appData_.dsLopTinChi(), loi
+            appData_.tenFileLopTinChi, appData_.dsLopTinChi, loi
         );
 }
 
 bool DangKyManager::dangKy(
     int maLopTC,
-    const std::string& maSV,
+    std::string maSV,
     std::string& loi
 ) {
     Loptinchi* lop = TimLopTinChiTheoMa(
-        appData_.dsLopTinChi(), maLopTC
+        appData_.dsLopTinChi, maLopTC
     );
     PTRDK dangKyCu = lop == nullptr ? nullptr : TimDangKy(lop->dssvdk, maSV);
-    const bool daTonTai = dangKyCu != nullptr;
-    const Dangky duLieuCu = daTonTai ? dangKyCu->dk : Dangky{};
+    bool daTonTai = dangKyCu != nullptr;
+    DangKy duLieuCu = daTonTai ? dangKyCu->dk : DangKy{};
     if (!DangKyLopTinChi(
-        appData_.dsLopTinChi(), appData_.dsLop(), maLopTC, maSV, loi
+        appData_.dsLopTinChi, appData_.dsLop, maLopTC, maSV, loi
     )) {
         return false;
     }
@@ -63,15 +59,15 @@ bool DangKyManager::dangKy(
 
 bool DangKyManager::huyDangKy(
     int maLopTC,
-    const std::string& maSV,
+    std::string maSV,
     std::string& loi
 ) {
     Loptinchi* lop = TimLopTinChiTheoMa(
-        appData_.dsLopTinChi(), maLopTC
+        appData_.dsLopTinChi, maLopTC
     );
     PTRDK dangKyCu = lop == nullptr ? nullptr : TimDangKy(lop->dssvdk, maSV);
-    const Dangky duLieuCu = dangKyCu == nullptr ? Dangky{} : dangKyCu->dk;
-    if (!HuyDangKy(appData_.dsLopTinChi(), maLopTC, maSV, loi)) {
+    DangKy duLieuCu = dangKyCu == nullptr ? DangKy{} : dangKyCu->dk;
+    if (!HuyDangKy(appData_.dsLopTinChi, maLopTC, maSV, loi)) {
         return false;
     }
     if (luu(loi)) {
@@ -86,10 +82,24 @@ bool DangKyManager::huyDangKy(
 
 bool DangKyManager::daDangKy(
     int maLopTC,
-    const std::string& maSV
-) const {
-    const Loptinchi* lop = TimLopTinChiTheoMa(
-        appData_.dsLopTinChi(), maLopTC
+    std::string maSV
+) {
+    Loptinchi* lop = TimLopTinChiTheoMa(
+        appData_.dsLopTinChi, maLopTC
     );
     return lop != nullptr && SinhVienDangKyLopTinChi(*lop, maSV);
+}
+
+PTRDK* DangKyManager::layDanhSach(int maLopTC, int& soLuong, string& loi) {
+    loi.clear();
+    Loptinchi* lop = TimLopTinChiTheoMa(appData_.dsLopTinChi, maLopTC);
+    if (!lop) { soLuong = -1; loi = "Không tìm thấy lớp tín chỉ."; return nullptr; }
+    return LayDanhSachDangKy(*lop, soLuong);
+}
+
+bool DangKyManager::timSinhVien(string maSV, Sinhvien& ketQua) {
+    for (int i = 0; i < appData_.dsLop.n; ++i)
+        for (PTRSV node = appData_.dsLop.nodes[i].dssv; node; node = node->next)
+            if (node->sv.MASV == maSV) { ketQua = node->sv; return true; }
+    return false;
 }

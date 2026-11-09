@@ -10,8 +10,9 @@ from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QWidget
 class InlineNotice(QWidget):
     DISPLAY_MS = 2000
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, collapse_when_idle=False):
         super().__init__(parent)
+        self._collapse_when_idle = collapse_when_idle
         self.setFixedHeight(40)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._progress = 0.0
@@ -47,6 +48,8 @@ class InlineNotice(QWidget):
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.dismiss)
+        if self._collapse_when_idle:
+            self.hide()
 
     def sizeHint(self):
         return QSize(280, 40)
@@ -55,6 +58,8 @@ class InlineNotice(QWidget):
         self.dismiss()
         self.message.setText(text)
         self.banner.setAccessibleName(text)
+        if self._collapse_when_idle:
+            self.show()
         self._position_banner()
         self.banner.show()
         self.animation.setStartValue(0.0)
@@ -67,6 +72,8 @@ class InlineNotice(QWidget):
         self.animation.stop()
         self.banner.hide()
         self._progress = 0.0
+        if self._collapse_when_idle and not self.isHidden():
+            self.hide()
 
     def _animate(self, value):
         self._progress = float(value)

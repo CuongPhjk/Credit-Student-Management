@@ -221,7 +221,6 @@ class DashboardPage(QWidget):
             ("subject", "subject.svg", "Môn học"),
             ("credit_class", "credit_class.svg", "Lớp tín chỉ"),
             ("registration", "registration.svg", "Đăng ký học"),
-            ("score", "score.svg", "Nhập điểm"),
         ]
         self.nav_buttons = {}
         for key, icon_name, caption in menu_items:
@@ -330,7 +329,6 @@ class DashboardPage(QWidget):
         actions = [
             ("open_credit_class", "plus.svg", "Mở lớp tín chỉ", "green", "#059669"),
             ("registration", "file_text.svg", "Đăng ký học", "blue", "#087cf0"),
-            ("score", "score.svg", "Nhập điểm", "orange", "#e87900"),
         ]
         for key, icon_name, caption, theme, accent in actions:
             button = QPushButton(caption)
@@ -396,8 +394,6 @@ class DashboardPage(QWidget):
         if emit_signal:
             self.navigation_requested.emit(page_name)
 
-    def set_term(self, semester=1, academic_year="2026–2027"):
-        self.term_label.setText(f"Học kỳ {semester} · Niên khóa {academic_year}")
 
     def set_statistics(self, students=0, classes=0, subjects=0, credit_classes=0):
         for key, value in {

@@ -1,10 +1,34 @@
-#include "../../include/model/AppData.h"
+#include "../KhaiBao.h"
 
-#include "../../include/functions/HamMonHoc.h"
+void GiaiPhongCayMonHoc(treeMH& root)
+{
+    if (root == nullptr)
+        return;
 
-namespace {
+    GiaiPhongCayMonHoc(root->left);
+    GiaiPhongCayMonHoc(root->right);
+    delete root;
+    root = nullptr;
+}
 
-void GiaiPhongDanhSachDangKyNoiBo(PTRDK& danhSach) {
+void GiaiPhongDanhSachSinhVien(PTRSV& dsSV) {
+    while (dsSV != nullptr) {
+        PTRSV nodeCanXoa = dsSV;
+        dsSV = dsSV->next;
+        delete nodeCanXoa;
+    }
+}
+
+void GiaiPhongDanhSachLop(DS_LOP& dsLop) {
+    ++dsLop.phienBan;
+    for (int i = 0; i < dsLop.n; ++i) {
+        GiaiPhongDanhSachSinhVien(dsLop.nodes[i].dssv);
+        dsLop.nodes[i] = Lop{};
+    }
+    dsLop.n = 0;
+}
+
+void GiaiPhongDanhSachDangKy(PTRDK& danhSach) {
     while (danhSach != nullptr) {
         PTRDK nodeCanXoa = danhSach;
         danhSach = danhSach->next;
@@ -12,65 +36,26 @@ void GiaiPhongDanhSachDangKyNoiBo(PTRDK& danhSach) {
     }
 }
 
-void GiaiPhongDanhSachSinhVienNoiBo(PTRSV& danhSach) {
-    while (danhSach != nullptr) {
-        PTRSV nodeCanXoa = danhSach;
-        danhSach = danhSach->next;
-        delete nodeCanXoa;
+void GiaiPhongDanhSachLopTinChi(DS_LTC& dsLTC) {
+    for (int i = 0; i < dsLTC.n; ++i) {
+        GiaiPhongDanhSachDangKy(dsLTC.nodes[i]->dssvdk);
+        delete dsLTC.nodes[i];
+        dsLTC.nodes[i] = nullptr;
     }
+    dsLTC.n = 0;
+    dsLTC.maTiepTheo = 1;
 }
-
-}  // namespace
 
 AppData::~AppData() {
     clear();
 }
 
-treeMH& AppData::dsMonHoc() {
-    return dsMonHoc_;
-}
-
-const treeMH& AppData::dsMonHoc() const {
-    return dsMonHoc_;
-}
-
-DS_LTC& AppData::dsLopTinChi() {
-    return dsLopTinChi_;
-}
-
-const DS_LTC& AppData::dsLopTinChi() const {
-    return dsLopTinChi_;
-}
-
-DS_LOP& AppData::dsLop() {
-    return dsLop_;
-}
-
-const DS_LOP& AppData::dsLop() const {
-    return dsLop_;
-}
-
-std::string& AppData::tenFileLopTinChi() { return tenFileLopTinChi_; }
-const std::string& AppData::tenFileLopTinChi() const { return tenFileLopTinChi_; }
-
 void AppData::clear() {
-    tenFileLopTinChi_.clear();
-    GiaiPhongCayMonHoc(dsMonHoc_);
-
-    for (int i = 0; i < dsLopTinChi_.n; ++i) {
-        if (dsLopTinChi_.nodes[i] == nullptr) {
-            continue;
-        }
-        GiaiPhongDanhSachDangKyNoiBo(dsLopTinChi_.nodes[i]->dssvdk);
-        delete dsLopTinChi_.nodes[i];
-        dsLopTinChi_.nodes[i] = nullptr;
-    }
-    dsLopTinChi_.n = 0;
-    dsLopTinChi_.maTiepTheo = 1;
-
-    for (int i = 0; i < dsLop_.n; ++i) {
-        GiaiPhongDanhSachSinhVienNoiBo(dsLop_.nodes[i].dssv);
-        dsLop_.nodes[i] = Lop{};
-    }
-    dsLop_.n = 0;
+    tenFileMonHoc.clear();
+    tenFileLopSinhVien.clear();
+    tenFileLopTinChi.clear();
+    GiaiPhongCayMonHoc(dsMonHoc);
+    n = 0;
+    GiaiPhongDanhSachLopTinChi(dsLopTinChi);
+    GiaiPhongDanhSachLop(dsLop);
 }

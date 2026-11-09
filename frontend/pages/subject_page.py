@@ -3,7 +3,7 @@
 import math
 
 from PyQt6.QtCore import (
-    QSize, Qt,
+    QSize, Qt, QTimer,
     pyqtSignal,
 )
 from frontend.components.branding import CampusBackground, PtitBrand, SidebarNavButton
@@ -19,7 +19,6 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -37,9 +36,10 @@ from frontend.components.input_validation import (
     is_duplicate_error,
     show_field_error,
     show_temporary_message,
+    subject_code_error,
     text_input_error,
 )
-from frontend.components.notification import Notification
+from frontend.components.notification import Notification, NotificationBanner, NotificationType
 from frontend.pages.dashboard_page import ICONS, svg_label, svg_pixmap
 
 
@@ -90,6 +90,15 @@ class SubjectForm(EditorForm):
         form.addRow("Tín chỉ lý thuyết", self.theory_input)
         form.addRow("Tín chỉ thực hành", self.practice_input)
         root.addLayout(form)
+        if not self._editing:
+            hint = QLabel(
+                "Mã môn học chỉ được chứa chữ cái, chữ số.\n"
+                "Tên môn học chỉ được chứa chữ cái, chữ số, khoảng trắng "
+                "và các ký tự + - . / ( ) & #."
+            )
+            hint.setObjectName("subjectInputHint")
+            hint.setWordWrap(True)
+            root.addWidget(hint)
 
         self.status_label = QLabel()
         self.status_label.setObjectName("dialogStatus")
@@ -121,6 +130,7 @@ class SubjectForm(EditorForm):
             QLineEdit, QSpinBox { min-height: 28px; }
             QLineEdit[invalid="true"] { border: 1px solid #dc2626; }
             QLabel#fieldError { color: #dc2626; font-size: 12px; }
+            QLabel#subjectInputHint { color: #64748b; font-size: 12px; }
             QLabel#dialogStatus[status="success"] {
                 color: #15803d; background: #dcfce7; padding: 7px;
                 border-radius: 5px; font-weight: 600;
@@ -145,8 +155,8 @@ class SubjectForm(EditorForm):
                 self.code_input, self.code_error, "Vui lòng nhập mã môn học."
             )
             has_error = True
-        elif error := text_input_error(code):
-            show_field_error(self.code_input, self.code_error, f"Mã môn học {error}.")
+        elif error := subject_code_error(code):
+            show_field_error(self.code_input, self.code_error, error)
             has_error = True
         if not name.strip():
             show_field_error(
@@ -296,6 +306,10 @@ class SubjectPage(QWidget):
         self.subject_type = subject_type
         self.current_page = 1
         self.filtered_subjects = []
+        self._submitted_search_text = ""
+        self._search_error_timer = QTimer(self)
+        self._search_error_timer.setSingleShot(True)
+        self._search_error_timer.timeout.connect(lambda: self._set_search_invalid(False))
         self.setObjectName("subjectPage")
         self.setMinimumSize(1050, 680)
         self._build_ui()
@@ -343,7 +357,6 @@ class SubjectPage(QWidget):
             ("subject", "subject.svg", "Môn học"),
             ("credit_class", "credit_class.svg", "Lớp tín chỉ"),
             ("registration", "registration.svg", "Đăng ký học"),
-            ("score", "score.svg", "Nhập điểm"),
         ]
         self.nav_buttons = {}
         for key, icon_name, caption in items:
@@ -359,13 +372,6 @@ class SubjectPage(QWidget):
             self.nav_buttons[key] = button
             layout.addWidget(button)
         layout.addStretch()
-        line = QFrame()
-        line.setFixedHeight(1)
-        line.setStyleSheet("background: #6690b1; border: none;")
-        layout.addWidget(line)
-        self.sidebar_version = QLabel("Phiên bản 1.0.0\nNăm học 2025 - 2026")
-        self.sidebar_version.setObjectName("sidebarVersion")
-        layout.addWidget(self.sidebar_version)
         self.select_page("subject", emit_signal=False)
         return sidebar
 
@@ -379,6 +385,11 @@ class SubjectPage(QWidget):
         layout.setContentsMargins(14, 12, 14, 14)
         layout.setSpacing(10)
         layout.addWidget(self._build_filters())
+        self.subject_delete_notice = NotificationBanner()
+        layout.addWidget(self.subject_delete_notice)
+        self.subject_delete_notice_timer = QTimer(self)
+        self.subject_delete_notice_timer.setSingleShot(True)
+        self.subject_delete_notice_timer.timeout.connect(self.subject_delete_notice.hide)
         layout.addWidget(self._build_table_card(), 1)
         return content
 
@@ -480,7 +491,6 @@ class SubjectPage(QWidget):
             QScrollArea#subjectScroll > QWidget > QWidget { background: #f3f9fd; }
             QFrame#subjectSidebar { background: transparent; border: none; }
             QLabel#brandSubtitle { color: #7dd3fc; font-size: 12px; font-weight: 600; }
-            QLabel#sidebarVersion { color: white; font-size: 12px; line-height: 1.5; }
             QFrame#subjectTopbar { background: white; border: none; border-bottom: 1px solid #e2e8f0; }
             QLabel#topbarTitle { color: #0f2b4c; font-size: 17px; font-weight: 700; }
             QFrame#subjectCard { background: white; border: 1px solid #d8e2ef; border-radius: 9px; }
@@ -551,6 +561,10 @@ class SubjectPage(QWidget):
         self.apply_filters(reset_page=False)
 
     def _set_search_invalid(self, invalid):
+        if invalid:
+            self._search_error_timer.start(3000)
+        else:
+            self._search_error_timer.stop()
         self.search_input.setProperty("invalid", invalid)
         self.search_input.style().unpolish(self.search_input)
         self.search_input.style().polish(self.search_input)
@@ -559,7 +573,9 @@ class SubjectPage(QWidget):
     def _on_search_text_changed(self, _text):
         if self.search_input.property("invalid"):
             self._set_search_invalid(False)
-        self.apply_filters()
+        if not _text and self._submitted_search_text:
+            self._submitted_search_text = ""
+            self.apply_filters()
 
     def submit_search(self):
         if not self.search_input.text().strip():
@@ -567,12 +583,13 @@ class SubjectPage(QWidget):
             self.search_input.setFocus()
             return
         self._set_search_invalid(False)
+        self._submitted_search_text = self.search_input.text().strip().casefold()
         self.apply_filters()
 
     def apply_filters(self, *_args, reset_page=True):
         if reset_page:
             self.current_page = 1
-        text = self.search_input.text().strip().casefold()
+        text = self._submitted_search_text
         theory = self.theory_filter.currentData()
         practice = self.practice_filter.currentData()
         self.filtered_subjects = [
@@ -654,9 +671,16 @@ class SubjectPage(QWidget):
             except (RuntimeError, ValueError) as error:
                 show_temporary_message(dialog.status_label, str(error), status="error", duration=4000)
                 return False
-            Notification.success(self, "Đã cập nhật môn học.")
             self.refresh()
-            return True
+            show_temporary_message(dialog.status_label, "Đã cập nhật môn học.")
+            close_timer = QTimer(dialog)
+            close_timer.setSingleShot(True)
+            close_timer.timeout.connect(
+                lambda: self.editor_host.close_panel()
+                if self.editor_host.form is dialog else None
+            )
+            close_timer.start(850)
+            return False
 
         self.editor_host.open_form(dialog, on_save=save)
 
@@ -670,9 +694,11 @@ class SubjectPage(QWidget):
         try:
             self.manager.xoa_mon_hoc(code)
         except (AttributeError, RuntimeError, ValueError) as error:
-            Notification.error(self, str(error))
+            self.subject_delete_notice.set_message(str(error), NotificationType.ERROR)
+            self.subject_delete_notice_timer.start(3000)
             return
-        Notification.success(self, "Đã xóa môn học.")
+        self.subject_delete_notice.set_message("Đã xóa môn học.", NotificationType.SUCCESS)
+        self.subject_delete_notice_timer.start(3000)
         self.refresh()
 
 

@@ -1,6 +1,6 @@
 """Trang đăng ký và hủy đăng ký lớp tín chỉ cho sinh viên."""
 
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QButtonGroup,
@@ -20,9 +20,8 @@ from PyQt6.QtWidgets import (
 
 from frontend.components.confirm_dialog import ConfirmDialog
 from frontend.components.input_validation import apply_text_validator
-from frontend.components.inline_notice import InlineNotice
-from frontend.components.notification import Notification
-from frontend.pages.dashboard_page import status_badge, svg_label, svg_pixmap
+from frontend.components.notification import NotificationBanner, NotificationType
+from frontend.pages.dashboard_page import svg_label, svg_pixmap
 from frontend.pages.subject_page import SubjectPage
 
 
@@ -32,7 +31,7 @@ class AvailableClassTable(QTableWidget):
     def __init__(self, parent=None):
         headers = [
             "Chọn", "Mã MH", "Tên môn học", "Nhóm",
-            "Đã đăng ký", "Còn trống", "Trạng thái",
+            "Đã đăng ký", "Còn trống",
         ]
         super().__init__(0, len(headers), parent)
         self.setHorizontalHeaderLabels(headers)
@@ -44,9 +43,9 @@ class AvailableClassTable(QTableWidget):
         self.setMinimumHeight(245)
         header = self.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        for column in (0, 1, 3, 4, 5, 6):
+        for column in (0, 1, 3, 4, 5):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
-        widths = {0: 48, 1: 75, 3: 52, 4: 86, 5: 78, 6: 108}
+        widths = {0: 48, 1: 75, 3: 52, 4: 86, 5: 78}
         for column, width in widths.items():
             self.setColumnWidth(column, width)
         self.empty_label = QLabel("Không có lớp tín chỉ phù hợp", self.viewport())
@@ -60,10 +59,8 @@ class AvailableClassTable(QTableWidget):
         self.empty_label.setGeometry(self.viewport().rect())
 
     def set_classes(
-        self, classes, subject_names, registered_subjects,
-        registered_class_ids=None,
+        self, classes, subject_names,
     ):
-        registered_class_ids = registered_class_ids or set()
         self.setRowCount(0)
         if self.button_group is not None:
             self.button_group.deleteLater()
@@ -74,7 +71,6 @@ class AvailableClassTable(QTableWidget):
             self.insertRow(row)
             registered = credit_class.so_sv_dang_ky
             available = max(0, credit_class.so_sv_max - registered)
-            selectable = available > 0 and credit_class.ma_mh not in registered_subjects
             values = [
                 credit_class.ma_mh,
                 subject_names.get(credit_class.ma_mh, credit_class.ma_mh),
@@ -86,7 +82,6 @@ class AvailableClassTable(QTableWidget):
             radio_layout = QHBoxLayout(radio_container)
             radio_layout.setContentsMargins(0, 0, 0, 0)
             radio = QRadioButton()
-            radio.setEnabled(selectable)
             radio.toggled.connect(
                 lambda checked, class_id=credit_class.ma_lop_tc:
                 self.selection_changed.emit(class_id) if checked else None
@@ -104,17 +99,6 @@ class AvailableClassTable(QTableWidget):
                        else Qt.AlignmentFlag.AlignCenter)
                 )
                 self.setItem(row, column, item)
-            if available == 0:
-                status, tone = "Đã đầy", "red"
-            elif available <= max(3, round(credit_class.so_sv_max * 0.2)):
-                status, tone = "Sắp đầy", "yellow"
-            else:
-                status, tone = "Còn chỗ", "green"
-            if credit_class.ma_lop_tc in registered_class_ids:
-                status, tone = "Đã đăng ký", "blue"
-            elif credit_class.ma_mh in registered_subjects:
-                status, tone = "Trùng môn", "yellow"
-            self.setCellWidget(row, 6, status_badge(status, tone))
             self.setRowHeight(row, 38)
         self.empty_label.setVisible(self.rowCount() == 0)
         self.empty_label.raise_()
@@ -123,7 +107,7 @@ class AvailableClassTable(QTableWidget):
 class RegisteredClassTable(QTableWidget):
     def __init__(self, parent=None):
         headers = [
-            "Mã MH", "Tên môn học", "Nhóm", "Trạng thái"
+            "Mã MH", "Tên môn học", "Nhóm"
         ]
         super().__init__(0, len(headers), parent)
         self.setHorizontalHeaderLabels(headers)
@@ -135,9 +119,9 @@ class RegisteredClassTable(QTableWidget):
         self.setMinimumHeight(200)
         header = self.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        for column in (0, 2, 3):
+        for column in (0, 2):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
-        for column, width in {0: 75, 2: 52, 3: 108}.items():
+        for column, width in {0: 75, 2: 52}.items():
             self.setColumnWidth(column, width)
         self.empty_label = QLabel("Sinh viên chưa đăng ký lớp nào", self.viewport())
         self.empty_label.setObjectName("subjectEmptyLabel")
@@ -168,7 +152,6 @@ class RegisteredClassTable(QTableWidget):
                 if column == 0:
                     item.setData(Qt.ItemDataRole.UserRole, credit_class.ma_lop_tc)
                 self.setItem(row, column, item)
-            self.setCellWidget(row, 3, status_badge("Đã đăng ký", "green"))
             self.setRowHeight(row, 38)
         self.empty_label.setVisible(self.rowCount() == 0)
         self.empty_label.raise_()
@@ -235,6 +218,11 @@ class RegistrationPage(SubjectPage):
         apply_text_validator(self.student_input)
         self.student_input.setObjectName("subjectSearchInput")
         self.student_input.setProperty("invalid", False)
+        self._student_input_error_timer = QTimer(self.student_input)
+        self._student_input_error_timer.setSingleShot(True)
+        self._student_input_error_timer.timeout.connect(
+            lambda: self._set_student_input_invalid(False)
+        )
         self.student_input.setPlaceholderText("Nhập mã sinh viên...")
         self.student_input.returnPressed.connect(self.find_student)
         self.student_input.textChanged.connect(self._student_input_changed)
@@ -245,7 +233,6 @@ class RegistrationPage(SubjectPage):
         find_button.setIconSize(QSize(20, 20))
         find_button.clicked.connect(self.find_student)
         search_row.addWidget(find_button)
-        self.student_notice = InlineNotice()
         layout.addLayout(search_row)
         self.student_info = QFrame()
         self.student_info.setObjectName("studentInfoCard")
@@ -281,17 +268,27 @@ class RegistrationPage(SubjectPage):
         row = QHBoxLayout()
         self.year_input = QComboBox()
         self.year_input.setMinimumWidth(165)
+        year_column = QVBoxLayout()
+        year_label = QLabel("Niên khóa")
+        year_label.setObjectName("filterLabel")
+        year_column.addWidget(year_label)
+        year_column.addWidget(self.year_input)
         self.semester_input = QComboBox()
         self.semester_input.setMinimumWidth(120)
+        semester_column = QVBoxLayout()
+        semester_label = QLabel("Học kỳ")
+        semester_label.setObjectName("filterLabel")
+        semester_column.addWidget(semester_label)
+        semester_column.addWidget(self.semester_input)
         for semester in range(1, 4):
             self.semester_input.addItem(f"Học kỳ {semester}", semester)
-        row.addWidget(self.year_input)
-        row.addWidget(self.semester_input)
+        row.addLayout(year_column)
+        row.addLayout(semester_column)
         show_button = QPushButton("Hiển thị lớp đang mở")
         show_button.setObjectName("primaryButton")
         show_button.setIcon(QIcon(svg_pixmap("search.svg", "#ffffff", 20)))
         show_button.clicked.connect(self.load_term)
-        row.addWidget(show_button)
+        row.addWidget(show_button, 0, Qt.AlignmentFlag.AlignBottom)
         layout.addLayout(row)
         return card
 
@@ -351,20 +348,39 @@ class RegistrationPage(SubjectPage):
 
     def _build_actions(self):
         actions = QHBoxLayout()
-        actions.addWidget(self.student_notice, 1)
-        self.registration_notice = InlineNotice()
-        actions.addWidget(self.registration_notice, 1)
+        self.page_notice = NotificationBanner()
+        self.page_notice.setFixedSize(320, 46)
+        notice_policy = self.page_notice.sizePolicy()
+        notice_policy.setRetainSizeWhenHidden(True)
+        self.page_notice.setSizePolicy(notice_policy)
+        self.page_notice.message_label.setWordWrap(True)
+        actions.addWidget(self.page_notice)
+        actions.addStretch(1)
+        self.page_notice_timer = QTimer(self)
+        self.page_notice_timer.setSingleShot(True)
+        self.page_notice_timer.timeout.connect(self.page_notice.hide)
         clear_button = QPushButton("Hủy chọn")
-        clear_button.setObjectName("secondaryButton")
+        clear_button.setObjectName("registrationClearButton")
+        clear_button.setFixedSize(200, 46)
         clear_button.clicked.connect(self.clear_selection)
         actions.addWidget(clear_button)
         register_button = QPushButton("Xác nhận đăng ký")
         register_button.setObjectName("successButton")
         register_button.setIcon(QIcon(svg_pixmap("registration.svg", "#ffffff", 20)))
         register_button.setIconSize(QSize(20, 20))
+        register_button.setFixedSize(200, 46)
         register_button.clicked.connect(self.register_selected)
         actions.addWidget(register_button)
         return actions
+
+    def _show_page_notice(self, message, kind=NotificationType.ERROR):
+        self.page_notice.set_message(message, kind)
+        self.page_notice.setToolTip(message)
+        self.page_notice_timer.start(3000 if kind == NotificationType.SUCCESS else 4000)
+
+    def _clear_page_notice(self):
+        self.page_notice_timer.stop()
+        self.page_notice.hide()
 
     def _apply_style(self):
         super()._apply_style()
@@ -392,6 +408,11 @@ class RegistrationPage(SubjectPage):
                 border: 1px solid #b9cce3; border-radius: 6px; font-size: 14px;
             }
             QPushButton#secondaryButton:hover { background: #f1f7fc; }
+            QPushButton#registrationClearButton {
+                padding: 5px 12px; color: #244f82; background: white;
+                border: 1px solid #b9cce3; border-radius: 6px; font-size: 14px;
+            }
+            QPushButton#registrationClearButton:hover { background: #f1f7fc; }
         """)
 
     def refresh(self):
@@ -399,7 +420,7 @@ class RegistrationPage(SubjectPage):
         if self.current_student is not None:
             self._load_tables()
         else:
-            self.available_table.set_classes([], {}, set(), set())
+            self.available_table.set_classes([], {})
             self.registered_table.set_classes([], {})
 
     def _populate_years(self):
@@ -414,12 +435,16 @@ class RegistrationPage(SubjectPage):
         self.year_input.blockSignals(True)
         self.year_input.clear()
         for year in years:
-            self.year_input.addItem(f"Niên khóa {year}", year)
+            self.year_input.addItem(year, year)
         index = self.year_input.findData(selected)
         self.year_input.setCurrentIndex(max(0, index))
         self.year_input.blockSignals(False)
 
     def _set_student_input_invalid(self, invalid):
+        if invalid:
+            self._student_input_error_timer.start(3000)
+        else:
+            self._student_input_error_timer.stop()
         self.student_input.setProperty("invalid", invalid)
         self.student_input.style().unpolish(self.student_input)
         self.student_input.style().polish(self.student_input)
@@ -427,21 +452,21 @@ class RegistrationPage(SubjectPage):
 
     def _student_input_changed(self, _text):
         self._set_student_input_invalid(False)
-        self.student_notice.dismiss()
-        self.registration_notice.dismiss()
+        self._clear_page_notice()
 
     def find_student(self):
-        self.student_notice.dismiss()
+        self._clear_page_notice()
         code = self.student_input.text().strip()
         if not code:
             self._set_student_input_invalid(True)
+            self._show_page_notice("Vui lòng nhập mã sinh viên")
             self.student_input.setFocus()
             return
         self._set_student_input_invalid(False)
         try:
             info = self.class_student_manager.tim_thong_tin_sinh_vien(code)
         except (AttributeError, RuntimeError, ValueError) as error:
-            Notification.error(self, str(error))
+            self._show_page_notice(str(error))
             return
         if info is None:
             self.current_student = None
@@ -452,11 +477,11 @@ class RegistrationPage(SubjectPage):
             self.student_class_label.setText("Lớp: —")
             self.student_gender_label.setText("Phái: —")
             self.student_phone_label.setText("SĐT: —")
-            self.available_table.set_classes([], {}, set(), set())
+            self.available_table.set_classes([], {})
             self.registered_table.set_classes([], {})
             self.available_count_label.setText("Hiển thị 0 lớp đang mở")
             self.registered_count_label.setText("0 lớp đã đăng ký")
-            self.student_notice.show_message("Không tìm thấy sinh viên")
+            self._show_page_notice("Không tìm thấy sinh viên")
             return
         self.current_student = info["sinh_vien"]
         self.current_class_code = info["ma_lop"]
@@ -469,13 +494,13 @@ class RegistrationPage(SubjectPage):
         self._load_tables()
 
     def load_term(self):
-        self.student_notice.dismiss()
+        self._clear_page_notice()
         if not self.student_input.text().strip():
             self.student_input.setFocus()
-            self.student_notice.show_message("Vui lòng nhập mã sinh viên")
+            self._show_page_notice("Vui lòng nhập mã sinh viên")
             return
         if self.current_student is None:
-            self.student_notice.show_message("Vui lòng xác nhận sinh viên trước")
+            self._show_page_notice("Vui lòng xác nhận sinh viên trước")
             return
         self._load_tables()
 
@@ -488,7 +513,7 @@ class RegistrationPage(SubjectPage):
         }
 
     def _load_tables(self):
-        self.registration_notice.dismiss()
+        self._clear_page_notice()
         if self.current_student is None or self.credit_class_manager is None:
             return
         year = self.year_input.currentData()
@@ -502,12 +527,9 @@ class RegistrationPage(SubjectPage):
             if self.manager.da_dang_ky(item.ma_lop_tc, self.current_student.ma_sv)
         ]
         open_classes = [item for item in all_classes if not item.huy_lop]
-        registered_subjects = {item.ma_mh for item in registered}
-        registered_class_ids = {item.ma_lop_tc for item in registered}
         subject_names = self._subject_names()
         self.available_table.set_classes(
-            open_classes, subject_names, registered_subjects,
-            registered_class_ids,
+            open_classes, subject_names,
         )
         self.registered_table.set_classes(registered, subject_names)
         self.available_count_label.setText(
@@ -520,10 +542,10 @@ class RegistrationPage(SubjectPage):
 
     def _select_credit_class(self, class_id):
         self.selected_credit_class_id = class_id
-        self.registration_notice.dismiss()
+        self._clear_page_notice()
 
     def clear_selection(self):
-        self.registration_notice.dismiss()
+        self._clear_page_notice()
         group = self.available_table.button_group
         if group is not None:
             group.setExclusive(False)
@@ -533,9 +555,9 @@ class RegistrationPage(SubjectPage):
         self.selected_credit_class_id = None
 
     def register_selected(self):
-        self.registration_notice.dismiss()
+        self._clear_page_notice()
         if self.current_student is None or self.selected_credit_class_id is None:
-            self.registration_notice.show_message("Vui lòng chọn lớp tín chỉ")
+            self._show_page_notice("Vui lòng chọn lớp tín chỉ")
             return
         if not ConfirmDialog.ask(
             self,
@@ -549,32 +571,11 @@ class RegistrationPage(SubjectPage):
                 self.selected_credit_class_id, self.current_student.ma_sv
             )
         except (AttributeError, RuntimeError, ValueError) as error:
-            Notification.error(self, str(error))
+            self._show_page_notice(str(error))
             return
-        Notification.success(self, "Đăng ký lớp tín chỉ thành công.")
         self._load_tables()
+        self._show_page_notice("Đăng ký lớp tín chỉ thành công.", NotificationType.SUCCESS)
 
-    def cancel_registration(self):
-        if self.current_student is None:
-            Notification.warning(self, "Vui lòng xác nhận sinh viên trước.")
-            return
-        class_id = self.registered_table.selected_class_id()
-        if class_id is None:
-            Notification.warning(self, "Vui lòng chọn lớp cần hủy đăng ký.")
-            return
-        if not ConfirmDialog.ask(
-            self,
-            "Hủy đăng ký",
-            f"Bạn có chắc muốn hủy đăng ký lớp tín chỉ {class_id}?",
-        ):
-            return
-        try:
-            self.manager.huy_dang_ky(class_id, self.current_student.ma_sv)
-        except (AttributeError, RuntimeError, ValueError) as error:
-            Notification.error(self, str(error))
-            return
-        Notification.success(self, "Đã hủy đăng ký lớp tín chỉ.")
-        self._load_tables()
 
 
 __all__ = ["AvailableClassTable", "RegisteredClassTable", "RegistrationPage"]

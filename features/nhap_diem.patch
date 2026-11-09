@@ -1,0 +1,1696 @@
+# Archived feature: score entry and editing.
+# Includes C++ algorithms, manager, pybind11 bindings, PyQt UI, navigation,
+# unsaved-score prompts, icon, build configuration, documentation and tests.
+# Patch direction: score feature disabled -> original feature restored.
+# Existing data files and the registration score field are NOT changed.
+# Restore from the project root:
+#   git apply --check features/nhap_diem.patch
+#   git apply features/nhap_diem.patch
+# Then rebuild the backend and restart the application.
+# Later edits to shared files may require context adjustments.
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -29,11 +29,13 @@
+     backend/src/functions/HamLop.cpp
+     backend/src/functions/HamSinhVien.cpp
+     backend/src/functions/HamDangKy.cpp
++    backend/src/functions/HamDiem.cpp
+     backend/src/file/XuLyTep.cpp
+     backend/src/manager/MonHocManager.cpp
+     backend/src/manager/LopTinChiManager.cpp
+     backend/src/manager/LopSinhVienManager.cpp
+     backend/src/manager/DangKyManager.cpp
++    backend/src/manager/DiemManager.cpp
+     backend/src/utils/Utils.cpp
+ )
+ set_target_properties(credit_backend_core PROPERTIES
+@@ -93,5 +95,8 @@
+     target_link_libraries(test_dang_ky PRIVATE credit_backend_core)
+     add_test(NAME test_dang_ky COMMAND test_dang_ky)
+ 
++    add_executable(test_diem tests/cpp/test_score.cpp)
++    target_link_libraries(test_diem PRIVATE credit_backend_core)
++    add_test(NAME test_diem COMMAND test_diem)
+ 
+ endif()
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1,6 +1,6 @@
+ # Quản lý tín chỉ sinh viên
+ 
+-Ứng dụng desktop quản lý môn học, lớp niên chế, sinh viên, lớp tín chỉ, đăng ký học. Giao diện được viết bằng **Python/PyQt6**; nghiệp vụ và lưu dữ liệu được viết bằng **C++17**, kết nối qua **pybind11**. Dữ liệu nằm trong các tệp UTF-8 tại `backend/data/`.
++Ứng dụng desktop quản lý môn học, lớp niên chế, sinh viên, lớp tín chỉ, đăng ký học và điểm thi. Giao diện được viết bằng **Python/PyQt6**; nghiệp vụ và lưu dữ liệu được viết bằng **C++17**, kết nối qua **pybind11**. Dữ liệu nằm trong các tệp UTF-8 tại `backend/data/`.
+ 
+ ## Chức năng hiện có
+ 
+@@ -11,6 +11,7 @@
+ | Lớp và sinh viên | Tìm kiếm, thêm, sửa, xóa lớp niên chế; xem danh sách và quản lý sinh viên trong từng lớp. |
+ | Lớp tín chỉ | Mở, tìm kiếm, lọc theo niên khóa/nhóm/học kỳ, sửa và xóa lớp tín chỉ. |
+ | Đăng ký học | Tra cứu sinh viên, xem lớp đang mở theo niên khóa và học kỳ, đăng ký hoặc hủy đăng ký. |
++| Nhập điểm | Chọn niên khóa, học kỳ, môn và nhóm; nhập hoặc sửa điểm cho sinh viên có đăng ký còn hiệu lực. |
+ 
+ Giao diện kiểm tra dữ liệu nhập (rỗng, độ dài, ký tự, định dạng và khoảng số) trước khi gọi C++. Backend giữ kiểm tra nghiệp vụ như trùng mã, dữ liệu tồn tại và điều kiện sửa/xóa/đăng ký. Luồng đọc file kiểm tra dữ liệu riêng vì không đi qua form. Các hàm thêm/sửa C++ giả định đầu vào đã được giao diện xác nhận hợp lệ. Một số ràng buộc chính:
+ 
+@@ -18,7 +19,7 @@
+ - Niên khóa có dạng `YYYY-YYYY` với hai năm liên tiếp. Khi mở hoặc sửa lớp tín chỉ, niên khóa không được cũ hơn niên khóa hiện tại. Học kỳ từ 1 đến 3, nhóm lớn hơn 0 và sĩ số thỏa `0 < tối thiểu <= tối đa`.
+ - Sinh viên không thể đăng ký hai nhóm của cùng một môn trong cùng niên khóa và học kỳ, đăng ký vào lớp đã hủy hoặc lớp đã đủ chỗ.
+ - Không thể xóa môn học đã được dùng bởi lớp tín chỉ, lớp tín chỉ đã có dữ liệu đăng ký, lớp niên chế còn sinh viên, hoặc sinh viên đã có dữ liệu đăng ký.
+-- Dữ liệu đăng ký vẫn giữ trường điểm: `DIEM = -1` biểu thị chưa nhập điểm; `0` là điểm 0 đã nhập. Chức năng nhập điểm hiện được lưu riêng trong patch.
++- Điểm hợp lệ từ 0 đến 10. `DIEM = -1` biểu thị chưa nhập điểm; `0` là điểm 0 đã nhập. Sửa điểm thay đổi dữ liệu trên RAM; bấm Lưu mới ghi file. Khi rời trang hoặc đóng ứng dụng, chọn Không để khôi phục điểm trước khi sửa.
+ 
+ ## Cài đặt và chạy
+ 
+@@ -119,12 +120,3 @@
+ ```
+ 
+ Sau khi áp dụng, build lại backend. Nếu mã nguồn đã thay đổi nhiều, cần kiểm tra ngữ cảnh patch trước khi khôi phục.
+-
+-Chức năng nhập điểm được tạm gỡ và lưu tại `features/nhap_diem.patch`, gồm C++, manager, binding, giao diện, menu, nhắc lưu và kiểm thử. Dữ liệu điểm hiện có vẫn được đọc và ghi cùng đăng ký. Để khôi phục, chạy từ thư mục gốc:
+-
+-```powershell
+-git apply --check features/nhap_diem.patch
+-git apply features/nhap_diem.patch
+-```
+-
+-Sau đó build lại backend và khởi động lại ứng dụng. Nếu các file liên quan đã thay đổi, cần kiểm tra ngữ cảnh patch trước khi áp dụng.
+diff --git a/backend/src/KhaiBao.h b/backend/src/KhaiBao.h
+--- a/backend/src/KhaiBao.h
++++ b/backend/src/KhaiBao.h
+@@ -282,6 +282,14 @@
+     const Loptinchi& lopTinChi, int& soLuong
+ );
+ 
++// Diem
++Loptinchi* TimLopNhapDiem(
++    DS_LTC& dsLTC, const string& nienKhoa, int hocKy,
++    const string& maMH, int nhom, string& loi
++);
++bool NhapDiem(Loptinchi& lop, const string& maSV, float diem, string& loi);
++DangKy* LayDanhSachSinhVienNhapDiem(const Loptinchi& lop, int& soLuong);
++
+ // ==========================================
+ // FILE PROCESSING
+ // ==========================================
+@@ -399,6 +407,31 @@
+     AppData& appData_;
+ };
+ 
+-
+-
+-
++class DiemManager {
++public:
++    explicit DiemManager(AppData& appData);
++
++    bool timSinhVien(const string& maSV, Sinhvien& ketQua) const;
++    bool luuDiem(std::string& loi) const;
++    DangKy* layDanhSachSinhVien(
++        const string& nienKhoa, int hocKy, const string& maMH, int nhom,
++        int& soLuong, string& loi
++    ) const;
++    bool capNhatDanhSachDiem(
++        const std::string& nienKhoa,
++        int hocKy,
++        const std::string& maMH,
++        int nhom,
++        const DangKy dsDiemMoi[],
++        int soLuong,
++        std::string& loi,
++        bool ghiFile = true
++    );
++
++private:
++    bool luu(std::string& loi) const;
++
++    AppData& appData_;
++};
++
++
+diff --git a/backend/src/functions/HamDiem.cpp b/backend/src/functions/HamDiem.cpp
+new file mode 100644
+--- /dev/null
++++ b/backend/src/functions/HamDiem.cpp
+@@ -0,0 +1,45 @@
++#include "../KhaiBao.h"
++
++Loptinchi* TimLopNhapDiem(
++    DS_LTC& dsLTC, const string& nienKhoa, int hocKy,
++    const string& maMH, int nhom, string& loi
++) {
++    loi.clear();
++    Loptinchi* lop = TimLopTinChi(dsLTC, nienKhoa, hocKy, maMH, nhom);
++    if (lop == nullptr) {
++        loi = "Không tìm thấy lớp tín chỉ phù hợp.";
++        return nullptr;
++    }
++    if (lop->HUYLOP) {
++        loi = "Không thể nhập điểm cho lớp tín chỉ đã bị hủy.";
++        return nullptr;
++    }
++    return lop;
++}
++
++bool NhapDiem(Loptinchi& lop, const string& maSV, float diem, string& loi) {
++    loi.clear();
++    if (lop.HUYLOP) {
++        loi = "Không thể nhập điểm cho lớp tín chỉ đã bị hủy.";
++        return false;
++    }
++    PTRDK dangKy = TimDangKy(lop.dssvdk, maSV);
++    if (dangKy == nullptr || dangKy->dk.HUYDK) {
++        loi = "Sinh viên không có đăng ký còn hiệu lực trong lớp tín chỉ.";
++        return false;
++    }
++    dangKy->dk.DIEM = diem;
++    return true;
++}
++
++DangKy* LayDanhSachSinhVienNhapDiem(const Loptinchi& lop, int& soLuong) {
++    soLuong = 0;
++    for (PTRDK node = lop.dssvdk; node != nullptr; node = node->next)
++        if (!node->dk.HUYDK) ++soLuong;
++    if (soLuong == 0) return nullptr;
++    DangKy* ketQua = new DangKy[soLuong];
++    int i = 0;
++    for (PTRDK node = lop.dssvdk; node != nullptr; node = node->next)
++        if (!node->dk.HUYDK) ketQua[i++] = node->dk;
++    return ketQua;
++}
+diff --git a/backend/src/manager/DiemManager.cpp b/backend/src/manager/DiemManager.cpp
+new file mode 100644
+--- /dev/null
++++ b/backend/src/manager/DiemManager.cpp
+@@ -0,0 +1,90 @@
++#include "../KhaiBao.h"
++
++DiemManager::DiemManager(AppData& appData)
++    : appData_(appData) {}
++
++bool DiemManager::luu(std::string& loi) const {
++    return appData_.tenFileLopTinChi().empty()
++        || GhiDanhSachLopTinChi(
++            appData_.tenFileLopTinChi(), appData_.dsLopTinChi(), loi
++        );
++}
++
++DangKy* DiemManager::layDanhSachSinhVien(
++    const string& nienKhoa, int hocKy, const string& maMH, int nhom,
++    int& soLuong, string& loi
++) const {
++    const Loptinchi* lop = TimLopNhapDiem(
++        appData_.dsLopTinChi(), nienKhoa, hocKy, maMH, nhom, loi
++    );
++    if (lop == nullptr) { soLuong = -1; return nullptr; }
++    return LayDanhSachSinhVienNhapDiem(*lop, soLuong);
++}
++
++bool DiemManager::capNhatDanhSachDiem(
++    const std::string& nienKhoa,
++    int hocKy,
++    const std::string& maMH,
++    int nhom,
++    const DangKy dsDiemMoi[],
++    int soLuong,
++    std::string& loi,
++    bool ghiFile
++) {
++    loi.clear();
++    if (dsDiemMoi == nullptr || soLuong <= 0) {
++        loi = "Danh sách điểm cập nhật không được để trống.";
++        return false;
++    }
++
++    Loptinchi* lop = TimLopNhapDiem(
++        appData_.dsLopTinChi(), nienKhoa, hocKy, maMH, nhom, loi
++    );
++    if (lop == nullptr) return false;
++
++    // Check registration eligibility and duplicate rows before changing scores.
++    for (int i = 0; i < soLuong; ++i) {
++        const string ma = ChuanHoaMa(dsDiemMoi[i].MASV);
++        for (int j = 0; j < i; ++j) {
++            if (ChuanHoaMa(dsDiemMoi[j].MASV) == ma) {
++                loi = "Mã sinh viên bị lặp trong danh sách cập nhật.";
++                return false;
++            }
++        }
++        PTRDK dk = TimDangKy(lop->dssvdk, ma);
++        int viTriLop;
++        if (dk == nullptr || dk->dk.HUYDK
++            || TimSinhVienToanTruong(appData_.dsLop(), ma, viTriLop) == nullptr) {
++            loi = "Sinh viên không có đăng ký còn hiệu lực trong lớp tín chỉ.";
++            return false;
++        }
++    }
++    float* diemCu = new float[soLuong];
++    for (int i = 0; i < soLuong; ++i) {
++        PTRDK dk = TimDangKy(lop->dssvdk, dsDiemMoi[i].MASV);
++        diemCu[i] = dk->dk.DIEM;
++        if (!NhapDiem(*lop, dsDiemMoi[i].MASV, dsDiemMoi[i].DIEM, loi)) {
++            for (int j = 0; j < i; ++j)
++                TimDangKy(lop->dssvdk, dsDiemMoi[j].MASV)->dk.DIEM = diemCu[j];
++            delete[] diemCu;
++            return false;
++        }
++    }
++    const bool thanhCong = !ghiFile || luu(loi);
++    if (!thanhCong) {
++        for (int i = 0; i < soLuong; ++i)
++            TimDangKy(lop->dssvdk, dsDiemMoi[i].MASV)->dk.DIEM = diemCu[i];
++    }
++    delete[] diemCu;
++    return thanhCong;
++}
++
++bool DiemManager::luuDiem(string& loi) const { return luu(loi); }
++
++bool DiemManager::timSinhVien(const string& maSV, Sinhvien& ketQua) const {
++    int viTriLop;
++    PTRSV node = TimSinhVienToanTruong(appData_.dsLop(), maSV, viTriLop);
++    if (node == nullptr) return false;
++    ketQua = node->sv;
++    return true;
++}
+diff --git a/bridge/Bindings.cpp b/bridge/Bindings.cpp
+--- a/bridge/Bindings.cpp
++++ b/bridge/Bindings.cpp
+@@ -1,3 +1,4 @@
++#include <memory>
+ #include <string>
+ 
+ #include <pybind11/pybind11.h>
+@@ -282,6 +283,88 @@
+ ) {
+     std::string loi;
+     if (!manager.huyDangKy(maLopTC, maSV, loi)) {
++        throw py::value_error(loi);
++    }
++    return true;
++}
++
++py::list layDanhSachSinhVienNhapDiem(
++    const DiemManager& manager,
++    const std::string& nienKhoa,
++    int hocKy,
++    const std::string& maMH,
++    int nhom
++) {
++    std::string loi;
++    int soLuong;
++    DangKy* danhSach = manager.layDanhSachSinhVien(
++        nienKhoa, hocKy, maMH, nhom, soLuong, loi
++    );
++    if (soLuong < 0) throw py::value_error(loi);
++    py::list ketQua;
++    for (int i = 0; i < soLuong; ++i) {
++        py::dict dong;
++        dong["ma_sv"] = danhSach[i].MASV;
++        Sinhvien sv;
++        if (!manager.timSinhVien(danhSach[i].MASV, sv)) {
++            const string ma = danhSach[i].MASV;
++            delete[] danhSach;
++            throw py::value_error("Không tìm thấy thông tin sinh viên " + ma);
++        }
++        dong["ho"] = sv.HO;
++        dong["ten"] = sv.TEN;
++        dong["diem"] = danhSach[i].DIEM;
++        dong["da_co_diem"] = (danhSach[i].DIEM >= 0);
++        ketQua.append(dong);
++    }
++    delete[] danhSach;
++    return ketQua;
++}
++
++bool capNhatDanhSachDiem(
++    DiemManager& manager,
++    const std::string& nienKhoa,
++    int hocKy,
++    const std::string& maMH,
++    int nhom,
++    const py::list& danhSachDiem,
++    bool ghiFile = true
++) {
++    const int soLuong = static_cast<int>(py::len(danhSachDiem));
++    if (soLuong <= 0) {
++        throw py::value_error("Danh sách điểm cập nhật không được để trống.");
++    }
++    std::unique_ptr<DangKy[]> danhSachMoi(
++        new DangKy[soLuong]
++    );
++    for (int i = 0; i < soLuong; ++i) {
++        py::handle muc = danhSachDiem[i];
++        if (!py::isinstance<py::dict>(muc)) {
++            throw py::value_error(
++                "Mỗi dòng cập nhật điểm phải gồm ma_sv và diem."
++            );
++        }
++        py::dict dong = py::reinterpret_borrow<py::dict>(muc);
++        if (!dong.contains("ma_sv") || !dong.contains("diem")) {
++            throw py::value_error(
++                "Mỗi dòng cập nhật điểm phải gồm ma_sv và diem."
++            );
++        }
++        try {
++            danhSachMoi[i].MASV = py::cast<std::string>(dong["ma_sv"]);
++            danhSachMoi[i].DIEM = py::cast<float>(dong["diem"]);
++        } catch (const py::cast_error&) {
++            throw py::value_error(
++                "Mã sinh viên phải là chuỗi và điểm phải là số."
++            );
++        }
++    }
++
++    std::string loi;
++    if (!manager.capNhatDanhSachDiem(
++        nienKhoa, hocKy, maMH, nhom,
++        danhSachMoi.get(), soLuong, loi, ghiFile
++    )) {
+         throw py::value_error(loi);
+     }
+     return true;
+@@ -546,6 +629,32 @@
+             py::arg("ma_lop_tc"), py::arg("ma_sv")
+         );
+ 
+-
+-
+-}
++    py::class_<DiemManager>(module, "DiemManager")
++        .def("sua_diem_tren_ram", [](DiemManager& m, const string& y, int h, const string& mh, int n, const py::list& d) {
++            return capNhatDanhSachDiem(m, y, h, mh, n, d, false);
++        })
++        .def("luu_diem", [](const DiemManager& m) {
++            string loi;
++            if (!m.luuDiem(loi)) throw py::value_error(loi);
++            return true;
++        })
++        .def(
++            py::init<AppData&>(),
++            py::arg("app_data"),
++            py::keep_alive<1, 2>()
++        )
++        .def(
++            "lay_danh_sach_sinh_vien", &layDanhSachSinhVienNhapDiem,
++            py::arg("nien_khoa"), py::arg("hoc_ky"),
++            py::arg("ma_mh"), py::arg("nhom")
++        )
++        .def(
++            "cap_nhat_danh_sach_diem", [](DiemManager& m, const string& y, int h, const string& mh, int n, const py::list& d) {
++                return capNhatDanhSachDiem(m, y, h, mh, n, d, true);
++            },
++            py::arg("nien_khoa"), py::arg("hoc_ky"),
++            py::arg("ma_mh"), py::arg("nhom"),
++            py::arg("danh_sach_diem")
++        );
++
++}
+diff --git a/bridge/__init__.py b/bridge/__init__.py
+--- a/bridge/__init__.py
++++ b/bridge/__init__.py
+@@ -24,6 +24,7 @@
+     from ._credit_backend import (
+         AppData,
+         DangKyManager,
++        DiemManager,
+         LopTinChi,
+         LopTinChiManager,
+         Lop,
+@@ -36,6 +37,7 @@
+     _IMPORT_ERROR = exc
+     AppData = None
+     DangKyManager = None
++    DiemManager = None
+     MonHoc = None
+     MonHocManager = None
+     LopTinChi = None
+@@ -63,6 +65,7 @@
+ __all__ = [
+     "AppData",
+     "DangKyManager",
++    "DiemManager",
+     "MonHoc",
+     "MonHocManager",
+     "LopTinChi",
+diff --git a/frontend/main_window.py b/frontend/main_window.py
+--- a/frontend/main_window.py
++++ b/frontend/main_window.py
+@@ -9,6 +9,7 @@
+ from bridge import (
+     AppData,
+     DangKyManager,
++    DiemManager,
+     Lop,
+     LopSinhVienManager,
+     LopTinChi,
+@@ -23,6 +24,7 @@
+     CreditClassPage,
+     DashboardPage,
+     RegistrationPage,
++    ScorePage,
+     SubjectPage,
+ )
+ 
+@@ -39,6 +41,7 @@
+         self.credit_class_manager = None
+         self.class_student_manager = None
+         self.registration_manager = None
++        self.score_manager = None
+         load_error = None
+         if backend_available():
+             self.app_data = AppData()
+@@ -46,6 +49,7 @@
+             self.credit_class_manager = LopTinChiManager(self.app_data)
+             self.class_student_manager = LopSinhVienManager(self.app_data)
+             self.registration_manager = DangKyManager(self.app_data)
++            self.score_manager = DiemManager(self.app_data)
+             data_dir = Path(__file__).resolve().parents[1] / "backend" / "data"
+             try:
+                 self.subject_manager.doc_danh_sach_mon_hoc(
+@@ -79,12 +83,18 @@
+             self.credit_class_manager,
+             self.subject_manager,
+         )
++        self.score_page = ScorePage(
++            self.score_manager,
++            self.credit_class_manager,
++            self.subject_manager,
++        )
+         self.pages = QStackedWidget()
+         self.pages.addWidget(self.dashboard_page)
+         self.pages.addWidget(self.subject_page)
+         self.pages.addWidget(self.credit_class_page)
+         self.pages.addWidget(self.class_student_page)
+         self.pages.addWidget(self.registration_page)
++        self.pages.addWidget(self.score_page)
+         self.setCentralWidget(self.pages)
+ 
+         self.dashboard_page.navigation_requested.connect(self.show_page)
+@@ -92,6 +102,7 @@
+         self.credit_class_page.navigation_requested.connect(self.show_page)
+         self.class_student_page.navigation_requested.connect(self.show_page)
+         self.registration_page.navigation_requested.connect(self.show_page)
++        self.score_page.navigation_requested.connect(self.show_page)
+         self.subject_page.subject_count_changed.connect(self._update_subject_count)
+         self.credit_class_page.credit_class_count_changed.connect(
+             self._update_credit_class_count
+@@ -131,7 +142,34 @@
+                 load_error,
+             )
+ 
++    def closeEvent(self, event):
++        if not self._confirm_score_changes():
++            event.ignore()
++            return
++        super().closeEvent(event)
++
++    def _confirm_score_changes(self):
++        if not self.score_page._dirty_students:
++            return True
++        prompt = QMessageBox(self)
++        prompt.setWindowTitle("Điểm chưa lưu")
++        prompt.setText("Bạn có muốn lưu điểm trước khi rời trang?")
++        save_button = prompt.addButton("Lưu", QMessageBox.ButtonRole.AcceptRole)
++        discard_button = prompt.addButton("Không", QMessageBox.ButtonRole.DestructiveRole)
++        prompt.exec()
++        if prompt.clickedButton() is save_button:
++            return self.score_page.save_scores()
++        if prompt.clickedButton() is discard_button:
++            return self.score_page.discard_unsaved_scores()
++        return False
++
+     def show_page(self, page_name):
++        if (page_name != "score"
++                and self.pages.currentWidget() is self.score_page
++                and self.score_page._dirty_students):
++            if not self._confirm_score_changes():
++                self.score_page.select_page("score", emit_signal=False)
++                return
+         if page_name == "open_credit_class":
+             self.show_page("credit_class")
+             QTimer.singleShot(0, self.credit_class_page.add_credit_class)
+@@ -164,6 +202,11 @@
+             self.registration_page.select_page(
+                 "registration", emit_signal=False
+             )
++            return
++        if page_name == "score":
++            self.score_page.refresh()
++            self.pages.setCurrentWidget(self.score_page)
++            self.score_page.select_page("score", emit_signal=False)
+             return
+ 
+     def _refresh_dashboard_credit_classes(self):
+diff --git a/frontend/pages/__init__.py b/frontend/pages/__init__.py
+--- a/frontend/pages/__init__.py
++++ b/frontend/pages/__init__.py
+@@ -2,9 +2,10 @@
+ from .credit_class_page import CreditClassPage
+ from .class_student_page import ClassStudentPage
+ from .registration_page import RegistrationPage
++from .score_page import ScorePage
+ from .subject_page import SubjectPage
+ 
+ __all__ = [
+     "ClassStudentPage", "CreditClassPage", "DashboardPage",
+-    "RegistrationPage", "SubjectPage",
++    "RegistrationPage", "ScorePage", "SubjectPage",
+ ]
+diff --git a/frontend/pages/dashboard_page.py b/frontend/pages/dashboard_page.py
+--- a/frontend/pages/dashboard_page.py
++++ b/frontend/pages/dashboard_page.py
+@@ -221,6 +221,7 @@
+             ("subject", "subject.svg", "Môn học"),
+             ("credit_class", "credit_class.svg", "Lớp tín chỉ"),
+             ("registration", "registration.svg", "Đăng ký học"),
++            ("score", "score.svg", "Nhập điểm"),
+         ]
+         self.nav_buttons = {}
+         for key, icon_name, caption in menu_items:
+@@ -329,6 +330,7 @@
+         actions = [
+             ("open_credit_class", "plus.svg", "Mở lớp tín chỉ", "green", "#059669"),
+             ("registration", "file_text.svg", "Đăng ký học", "blue", "#087cf0"),
++            ("score", "score.svg", "Nhập điểm", "orange", "#e87900"),
+         ]
+         for key, icon_name, caption, theme, accent in actions:
+             button = QPushButton(caption)
+diff --git a/frontend/pages/score_page.py b/frontend/pages/score_page.py
+new file mode 100644
+--- /dev/null
++++ b/frontend/pages/score_page.py
+@@ -0,0 +1,513 @@
++"""Trang lọc sinh viên đã đăng ký và nhập điểm trực tiếp trên bảng."""
++
++import math
++
++from PyQt6.QtCore import QLocale, Qt, QTimer
++from PyQt6.QtGui import QDoubleValidator
++from PyQt6.QtWidgets import (
++    QAbstractItemView,
++    QComboBox,
++    QFrame,
++    QHBoxLayout,
++    QHeaderView,
++    QLabel,
++    QLineEdit,
++    QPushButton,
++    QTableWidget,
++    QTableWidgetItem,
++    QVBoxLayout,
++    QWidget,
++)
++
++from frontend.components.confirm_dialog import ConfirmDialog
++from frontend.components.notification import Notification, NotificationBanner, NotificationType
++from frontend.components.inline_notice import InlineNotice
++from frontend.pages.dashboard_page import svg_label
++from frontend.pages.subject_page import SubjectPage
++
++
++class ScoreTable(QTableWidget):
++    """Bảng chỉ cho phép sửa cột điểm bằng ô số giới hạn từ 0 đến 10."""
++
++    def __init__(self, on_score_changed, parent=None):
++        super().__init__(0, 5, parent)
++        self._on_score_changed = on_score_changed
++        self.setHorizontalHeaderLabels(
++            ["STT", "MÃ SINH VIÊN", "HỌ", "TÊN", "ĐIỂM"]
++        )
++        self.verticalHeader().hide()
++        self.setAlternatingRowColors(True)
++        self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
++        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
++        self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
++        self.setMinimumHeight(360)
++
++        header = self.horizontalHeader()
++        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
++        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
++        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
++        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
++        self.setColumnWidth(0, 68)
++        self.setColumnWidth(1, 165)
++        self.setColumnWidth(4, 135)
++
++        self.empty_label = QLabel("Chưa có sinh viên để nhập điểm", self.viewport())
++        self.empty_label.setObjectName("subjectEmptyLabel")
++        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        self.empty_label.setAttribute(
++            Qt.WidgetAttribute.WA_TransparentForMouseEvents
++        )
++
++    def resizeEvent(self, event):
++        super().resizeEvent(event)
++        self.empty_label.setGeometry(self.viewport().rect())
++
++    @staticmethod
++    def _readonly_item(value, alignment=Qt.AlignmentFlag.AlignLeft):
++        item = QTableWidgetItem(str(value))
++        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
++        item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | alignment)
++        return item
++
++    def set_students(self, students):
++        self.setRowCount(0)
++        for index, student in enumerate(students, 1):
++            row = self.rowCount()
++            self.insertRow(row)
++            self.setItem(
++                row, 0,
++                self._readonly_item(index, Qt.AlignmentFlag.AlignCenter),
++            )
++            self.setItem(
++                row, 1,
++                self._readonly_item(
++                    student["ma_sv"], Qt.AlignmentFlag.AlignCenter
++                ),
++            )
++            self.setItem(row, 2, self._readonly_item(student["ho"]))
++            self.setItem(row, 3, self._readonly_item(student["ten"]))
++
++            editor = QLineEdit()
++            editor.setObjectName("scoreEditor")
++            editor.setAlignment(Qt.AlignmentFlag.AlignCenter)
++            validator = QDoubleValidator(0.0, 10.0, 2, editor)
++            validator.setNotation(QDoubleValidator.Notation.StandardNotation)
++            validator.setLocale(QLocale.c())
++            editor.setValidator(validator)
++            editor.setMaxLength(5)
++            editor.setPlaceholderText("Chưa nhập")
++            if student.get("da_co_diem", False):
++                editor.setText(f'{float(student["diem"]):g}')
++            code = student["ma_sv"]
++            editor.textChanged.connect(
++                lambda value, student_code=code:
++                self._on_score_changed(student_code, value)
++            )
++            self.setCellWidget(row, 4, editor)
++            self.setRowHeight(row, 38)
++
++        self.empty_label.setVisible(self.rowCount() == 0)
++        self.empty_label.raise_()
++
++    def score_updates(self, student_codes):
++        updates = []
++        wanted = set(student_codes)
++        for row in range(self.rowCount()):
++            code_item = self.item(row, 1)
++            editor = self.cellWidget(row, 4)
++            if code_item is None or editor is None:
++                continue
++            code = code_item.text()
++            if code in wanted:
++                text = editor.text().strip()
++                try:
++                    score = float(text) if text else -1.0
++                except ValueError as error:
++                    raise ValueError(
++                        f"Điểm của sinh viên {code} phải là số."
++                    ) from error
++                if text and (not math.isfinite(score) or score < 0 or score > 10):
++                    raise ValueError(
++                        f"Điểm của sinh viên {code} phải từ 0 đến 10."
++                    )
++                updates.append({"ma_sv": code, "diem": score})
++        return updates
++
++
++class ScorePage(SubjectPage):
++    """Nhập hoặc hiệu chỉnh điểm theo niên khóa, học kỳ, môn và nhóm."""
++
++    def __init__(
++        self,
++        score_manager=None,
++        credit_class_manager=None,
++        subject_manager=None,
++        parent=None,
++    ):
++        self.credit_class_manager = credit_class_manager
++        self.subject_manager = subject_manager
++        self._loaded_filter = None
++        self._original_scores = {}
++        self._dirty_students = set()
++        super().__init__(score_manager, None, parent)
++        self.select_page("score", emit_signal=False)
++
++    def _build_content(self):
++        content = QWidget()
++        content.setObjectName("subjectContent")
++        layout = QVBoxLayout(content)
++        layout.setContentsMargins(14, 12, 14, 14)
++        layout.setSpacing(10)
++
++        self.empty_notice = InlineNotice(collapse_when_idle=True)
++        layout.addWidget(self._build_filters())
++        self.save_notice = NotificationBanner()
++        layout.addWidget(self.save_notice)
++        self.save_notice_timer = QTimer(self)
++        self.save_notice_timer.setSingleShot(True)
++        self.save_notice_timer.timeout.connect(self.save_notice.hide)
++        layout.addWidget(self.empty_notice)
++        layout.addWidget(self._build_table_card(), 1)
++        return content
++
++    def _build_filters(self):
++        card = QFrame()
++        card.setObjectName("subjectCard")
++        layout = QHBoxLayout(card)
++        layout.setContentsMargins(12, 10, 12, 10)
++        layout.setSpacing(10)
++
++        self.year_input = QComboBox()
++        self.semester_input = QComboBox()
++        self.subject_input = QComboBox()
++        self.group_input = QComboBox()
++        self.year_input.setMinimumWidth(175)
++        self.semester_input.setMinimumWidth(125)
++        self.subject_input.setMinimumWidth(245)
++        self.group_input.setMinimumWidth(105)
++
++        layout.addWidget(self._field("Niên khóa", self.year_input))
++        layout.addWidget(self._field("Học kỳ", self.semester_input))
++        layout.addWidget(self._field("Môn học", self.subject_input), 1)
++        layout.addWidget(self._field("Nhóm", self.group_input))
++        show_button = QPushButton("Hiển thị danh sách")
++        show_button.setObjectName("primaryButton")
++        show_button.clicked.connect(self.load_students)
++        layout.addWidget(show_button, 0, Qt.AlignmentFlag.AlignBottom)
++
++        self.year_input.currentIndexChanged.connect(self._populate_semesters)
++        self.semester_input.currentIndexChanged.connect(self._populate_subjects)
++        self.subject_input.currentIndexChanged.connect(self._populate_groups)
++        for combo in (self.year_input, self.semester_input,
++                      self.subject_input, self.group_input):
++            combo.currentIndexChanged.connect(self.empty_notice.dismiss)
++        return card
++
++    def _build_table_card(self):
++        card = QFrame()
++        card.setObjectName("subjectCard")
++        layout = QVBoxLayout(card)
++        layout.setContentsMargins(12, 10, 12, 10)
++        layout.setSpacing(10)
++
++        heading = QHBoxLayout()
++        title = QLabel("Danh sách sinh viên đã đăng ký")
++        title.setObjectName("sectionTitle")
++        heading.addWidget(title)
++        heading.addStretch()
++        self.class_label = QLabel("Chưa chọn lớp tín chỉ")
++        self.class_label.setObjectName("rangeLabel")
++        heading.addWidget(self.class_label)
++        layout.addLayout(heading)
++
++        self.table = ScoreTable(self._score_changed)
++        layout.addWidget(self.table, 1)
++
++        notice = QFrame()
++        notice.setObjectName("infoBanner")
++        notice_layout = QHBoxLayout(notice)
++        notice_layout.setContentsMargins(12, 7, 12, 7)
++        notice_layout.addWidget(svg_label("info.svg", "#278df0", 24))
++        notice_text = QLabel(
++            "Điểm hợp lệ từ 0 đến 10. Danh sách chỉ gồm các sinh viên "
++            "có đăng ký còn hiệu lực."
++        )
++        notice_text.setWordWrap(True)
++        notice_layout.addWidget(notice_text, 1)
++        layout.addWidget(notice)
++
++        footer = QHBoxLayout()
++        self.count_label = QLabel("Hiển thị 0 sinh viên")
++        self.count_label.setObjectName("rangeLabel")
++        footer.addWidget(self.count_label)
++        footer.addStretch()
++        self.save_button = QPushButton("Lưu điểm")
++        self.save_button.setObjectName("successButton")
++        self.save_button.setEnabled(False)
++        self.save_button.clicked.connect(self.save_scores)
++        footer.addWidget(self.save_button)
++        layout.addLayout(footer)
++        return card
++
++    def _apply_style(self):
++        super()._apply_style()
++        self.setStyleSheet(self.styleSheet() + """
++            QLineEdit#scoreEditor {
++                min-height: 20px; margin: 2px 10px; padding: 2px 8px;
++                color: #0f2b4c; background: #fff;
++                border: 1px solid #9fb7d1; border-radius: 5px;
++                font-size: 14px; font-weight: 600;
++            }
++            QLineEdit#scoreEditor:focus {
++                border: 2px solid #087cf0; background: #f5fbff;
++            }
++            QPushButton#successButton {
++                min-height: 32px; padding: 7px 24px; color: white;
++                background: #059669; border: 1px solid #059669;
++                border-radius: 6px; font-size: 14px; font-weight: 600;
++            }
++            QPushButton#successButton:hover { background: #047857; }
++            QPushButton#successButton:disabled {
++                background: #a7c7ba; border-color: #a7c7ba;
++            }
++        """)
++
++    def _credit_classes(self):
++        if self.credit_class_manager is None:
++            return []
++        try:
++            return [
++                item
++                for item in self.credit_class_manager.lay_danh_sach_lop_tin_chi()
++                if not item.huy_lop
++            ]
++        except (AttributeError, RuntimeError, ValueError):
++            return []
++
++    def _subject_names(self):
++        if self.subject_manager is None:
++            return {}
++        try:
++            return {
++                item.ma_mh: item.ten_mh
++                for item in self.subject_manager.lay_danh_sach_mon_hoc()
++            }
++        except (AttributeError, RuntimeError, ValueError):
++            return {}
++
++    @staticmethod
++    def _replace_combo(combo, values, selected=None, caption=None):
++        combo.blockSignals(True)
++        combo.clear()
++        for value in values:
++            text = caption(value) if caption else str(value)
++            combo.addItem(text, value)
++        index = combo.findData(selected)
++        combo.setCurrentIndex(index if index >= 0 else (0 if values else -1))
++        combo.blockSignals(False)
++
++    def _populate_years(self):
++        selected = self.year_input.currentData()
++        years = sorted(
++            {item.nien_khoa for item in self._credit_classes()}, reverse=True
++        )
++        self._replace_combo(self.year_input, years, selected)
++        self._populate_semesters()
++
++    def _populate_semesters(self, _index=None):
++        year = self.year_input.currentData()
++        selected = self.semester_input.currentData()
++        semesters = sorted({
++            item.hoc_ky for item in self._credit_classes()
++            if item.nien_khoa == year
++        })
++        self._replace_combo(
++            self.semester_input, semesters, selected,
++            lambda value: f"Học kỳ {value}",
++        )
++        self._populate_subjects()
++
++    def _populate_subjects(self, _index=None):
++        year = self.year_input.currentData()
++        semester = self.semester_input.currentData()
++        selected = self.subject_input.currentData()
++        codes = sorted({
++            item.ma_mh for item in self._credit_classes()
++            if item.nien_khoa == year and item.hoc_ky == semester
++        })
++        names = self._subject_names()
++        self._replace_combo(
++            self.subject_input, codes, selected,
++            lambda code: f"{code} - {names.get(code, code)}",
++        )
++        self._populate_groups()
++
++    def _populate_groups(self, _index=None):
++        year = self.year_input.currentData()
++        semester = self.semester_input.currentData()
++        subject = self.subject_input.currentData()
++        selected = self.group_input.currentData()
++        groups = sorted({
++            item.nhom for item in self._credit_classes()
++            if item.nien_khoa == year
++            and item.hoc_ky == semester
++            and item.ma_mh == subject
++        })
++        self._replace_combo(
++            self.group_input, groups, selected,
++            lambda value: f"Nhóm {value}",
++        )
++
++    def _current_filter(self):
++        values = (
++            self.year_input.currentData(),
++            self.semester_input.currentData(),
++            self.subject_input.currentData(),
++            self.group_input.currentData(),
++        )
++        return None if any(value is None for value in values) else values
++
++    def refresh(self):
++        self._populate_years()
++        if self._loaded_filter is not None and not self._dirty_students:
++            self._load_filter(self._loaded_filter, notify_empty=False)
++
++    def load_students(self):
++        self.empty_notice.dismiss()
++        selected_filter = self._current_filter()
++        if selected_filter is None:
++            self.empty_notice.show_message("Không có dữ liệu")
++            return
++        if self._dirty_students and not ConfirmDialog.ask(
++            self,
++            "Bỏ thay đổi chưa lưu",
++            "Các điểm vừa sửa chưa được lưu. Bạn có muốn bỏ các thay đổi này?",
++        ):
++            return
++        if self._dirty_students and not self.discard_unsaved_scores():
++            return
++        self._load_filter(selected_filter, notify_empty=True)
++
++    def _load_filter(self, selected_filter, notify_empty):
++        self.empty_notice.dismiss()
++        if self.manager is None:
++            Notification.error(self, "Backend C++ chưa được build hoặc chưa được nạp.")
++            return
++        year, semester, subject, group = selected_filter
++        try:
++            students = self.manager.lay_danh_sach_sinh_vien(
++                year, semester, subject, group
++            )
++        except (AttributeError, RuntimeError, ValueError) as error:
++            Notification.error(self, str(error))
++            return
++
++        self._loaded_filter = selected_filter
++        self._original_scores = {
++            item["ma_sv"]: (
++                bool(item.get("da_co_diem", False)), float(item["diem"])
++            )
++            for item in students
++        }
++        self._dirty_students.clear()
++        self.table.set_students(students)
++        self.save_button.setEnabled(False)
++        self.count_label.setText(f"Hiển thị {len(students)} sinh viên")
++        self.class_label.setText(
++            f"{year} • Học kỳ {semester} • {subject} • Nhóm {group}"
++        )
++        if notify_empty and not students:
++            self.empty_notice.show_message("Không có dữ liệu")
++
++    def _score_changed(self, student_code, value):
++        original = self._original_scores.get(student_code)
++        if original is None:
++            return
++        text = str(value).strip()
++        try:
++            current_score = float(text) if text else None
++        except ValueError:
++            current_score = None
++        had_score, original_score = original
++        unchanged = (
++            not text and not had_score
++        ) or (
++            current_score is not None
++            and had_score
++            and abs(current_score - original_score) <= 0.0001
++        )
++        if not unchanged:
++            self._dirty_students.add(student_code)
++        else:
++            self._dirty_students.discard(student_code)
++        self.save_button.setEnabled(bool(self._dirty_students))
++        if self._loaded_filter is not None:
++            try:
++                score = float(text) if text else -1.0
++                if text and not (0 <= score <= 10):
++                    return
++                self.manager.sua_diem_tren_ram(
++                    *self._loaded_filter, [{"ma_sv": student_code, "diem": score}]
++                )
++            except (AttributeError, RuntimeError, ValueError) as error:
++                self._show_save_notice(str(error), NotificationType.ERROR)
++        self.save_button.setEnabled(bool(self._dirty_students))
++
++    def save_scores(self):
++        if self._loaded_filter is None:
++            self._show_save_notice("Vui lòng hiển thị một lớp tín chỉ trước.", NotificationType.WARNING)
++            return False
++        if not self._dirty_students:
++            self._show_save_notice("Không có điểm nào thay đổi.", NotificationType.INFO)
++            return False
++        try:
++            updates = self.table.score_updates(self._dirty_students)
++        except ValueError as error:
++            self._show_save_notice(str(error), NotificationType.WARNING)
++            return False
++        if len(updates) != len(self._dirty_students):
++            self._show_save_notice("Không thể đọc đầy đủ các dòng điểm đã sửa.", NotificationType.ERROR)
++            return False
++
++        year, semester, subject, group = self._loaded_filter
++        try:
++            self.manager.sua_diem_tren_ram(
++                year, semester, subject, group, updates
++            )
++            self.manager.luu_diem()
++        except (AttributeError, RuntimeError, TypeError, ValueError) as error:
++            self._show_save_notice(str(error), NotificationType.ERROR)
++            return False
++
++        for update in updates:
++            self._original_scores[update["ma_sv"]] = (
++                update["diem"] >= 0, float(update["diem"])
++            )
++        changed_count = len(updates)
++        self._dirty_students.clear()
++        self.save_button.setEnabled(False)
++        self._show_save_notice(f"Đã lưu điểm cho {changed_count} sinh viên.", NotificationType.SUCCESS)
++        return True
++
++    def _show_save_notice(self, message, kind):
++        self.save_notice.set_message(message, kind)
++        self.save_notice_timer.start(3000)
++
++    def discard_unsaved_scores(self):
++        if not self._dirty_students:
++            return True
++        if self._loaded_filter is None:
++            return False
++        updates = [{"ma_sv": code, "diem": score if had_score else -1.0}
++                   for code, (had_score, score) in self._original_scores.items()]
++        try:
++            if updates:
++                self.manager.sua_diem_tren_ram(*self._loaded_filter, updates)
++        except (AttributeError, RuntimeError, ValueError) as error:
++            self._show_save_notice(str(error), NotificationType.ERROR)
++            return False
++        self._load_filter(self._loaded_filter, notify_empty=False)
++        return not self._dirty_students
++
++
++__all__ = ["ScorePage", "ScoreTable"]
+diff --git a/frontend/pages/subject_page.py b/frontend/pages/subject_page.py
+--- a/frontend/pages/subject_page.py
++++ b/frontend/pages/subject_page.py
+@@ -357,6 +357,7 @@
+             ("subject", "subject.svg", "Môn học"),
+             ("credit_class", "credit_class.svg", "Lớp tín chỉ"),
+             ("registration", "registration.svg", "Đăng ký học"),
++            ("score", "score.svg", "Nhập điểm"),
+         ]
+         self.nav_buttons = {}
+         for key, icon_name, caption in items:
+diff --git a/frontend/resources/icons/score.svg b/frontend/resources/icons/score.svg
+new file mode 100644
+--- /dev/null
++++ b/frontend/resources/icons/score.svg
+@@ -0,0 +1,4 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
++  <path d="M12 20h9"></path>
++  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
++</svg>
+diff --git a/tests/cpp/test_score.cpp b/tests/cpp/test_score.cpp
+new file mode 100644
+--- /dev/null
++++ b/tests/cpp/test_score.cpp
+@@ -0,0 +1,144 @@
++#include <cassert>
++#include <cmath>
++#include <filesystem>
++#include <fstream>
++#include <string>
++
++#include "../../backend/src/KhaiBao.h"
++
++namespace {
++
++void TaoDuLieu(AppData& duLieu, std::string& loi) {
++    const std::string nienKhoa = NienKhoaHienTai();
++    assert(ThemMonHoc(
++        duLieu.dsMonHoc(), Monhoc{"INT100", "Lap trinh", 3, 1}, loi
++    ));
++    assert(ThemLop(
++        duLieu.dsLop(), Lop{"D21CQCN01", "Cong nghe thong tin", nullptr}, loi
++    ));
++    assert(ThemSinhVien(
++        duLieu.dsLop(), "D21CQCN01",
++        Sinhvien{"N21DCCN001", "Nguyen Van", "An", "Nam", "0901234567"},
++        loi
++    ));
++    assert(ThemSinhVien(
++        duLieu.dsLop(), "D21CQCN01",
++        Sinhvien{"N21DCCN002", "Tran Thi", "Binh", u8"Nữ", "0987654321"},
++        loi
++    ));
++    assert(ThemSinhVien(
++        duLieu.dsLop(), "D21CQCN01",
++        Sinhvien{"N21DCCN003", "Le Van", "Cuong", "Nam", "0912345678"},
++        loi
++    ));
++    assert(ThemLopTinChi(
++        duLieu.dsLopTinChi(), duLieu.dsMonHoc(),
++        Loptinchi{0, "INT100", nienKhoa, 1, 1, 1, 3, false, nullptr},
++        loi
++    ));
++    assert(ThemLopTinChi(
++        duLieu.dsLopTinChi(), duLieu.dsMonHoc(),
++        Loptinchi{0, "INT100", nienKhoa, 1, 2, 1, 3, false, nullptr},
++        loi
++    ));
++    assert(HuyLopTinChi(duLieu.dsLopTinChi(), 2, loi));
++    assert(DangKyLopTinChi(
++        duLieu.dsLopTinChi(), duLieu.dsLop(), 1, "N21DCCN001", loi
++    ));
++    assert(DangKyLopTinChi(
++        duLieu.dsLopTinChi(), duLieu.dsLop(), 1, "N21DCCN002", loi
++    ));
++    assert(DangKyLopTinChi(
++        duLieu.dsLopTinChi(), duLieu.dsLop(), 1, "N21DCCN003", loi
++    ));
++    assert(HuyDangKy(duLieu.dsLopTinChi(), 1, "N21DCCN003", loi));
++}
++
++}  // namespace
++
++int main() {
++    AppData duLieu;
++    std::string loi;
++    const std::string nienKhoa = NienKhoaHienTai();
++    TaoDuLieu(duLieu, loi);
++
++    assert(DiemHopLe(0.0F));
++    assert(DiemHopLe(10.0F));
++    assert(!DiemHopLe(-0.1F));
++    assert(!DiemHopLe(10.1F));
++    assert(!DiemHopLe(std::nanf("")));
++    Loptinchi* lopNhapDiem = TimLopNhapDiem(
++        duLieu.dsLopTinChi(), nienKhoa, 1, "INT100", 1, loi
++    );
++    assert(lopNhapDiem != nullptr);
++    assert(TimLopNhapDiem(duLieu.dsLopTinChi(), nienKhoa, 1, "INT100", 2, loi) == nullptr);
++    assert(!loi.empty());
++    int soLuong;
++    DangKy* danhSach = LayDanhSachSinhVienNhapDiem(*lopNhapDiem, soLuong);
++    assert(soLuong == 2);
++    assert(danhSach[0].MASV == "N21DCCN001" && danhSach[0].DIEM == -1.0F);
++    assert(danhSach[1].MASV == "N21DCCN002");
++    delete[] danhSach;
++    const Loptinchi lopRong{};
++    assert(LayDanhSachSinhVienNhapDiem(lopRong, soLuong) == nullptr);
++    assert(soLuong == 0);
++    assert(NhapDiem(*lopNhapDiem, "N21DCCN001", 8.5F, loi));
++    assert(!NhapDiem(*lopNhapDiem, "N21DCCN003", 7.0F, loi));
++
++    const std::filesystem::path fileDangKy =
++        std::filesystem::current_path() / "score_test.txt";
++    assert(GhiDanhSachLopTinChi(
++        fileDangKy.string(), duLieu.dsLopTinChi(), loi
++    ));
++    DiemManager manager(duLieu);
++    assert(manager.layDanhSachSinhVien(
++        nienKhoa, 1, "KHONGTONTAI", 1, soLuong, loi
++    ) == nullptr);
++    assert(soLuong == -1 && !loi.empty());
++    duLieu.tenFileLopTinChi() = fileDangKy.string();
++
++    const DangKy diemMoi[2] = {
++        {"N21DCCN001", 9.25F},
++        {"N21DCCN002", 7.5F},
++    };
++    assert(manager.capNhatDanhSachDiem(
++        nienKhoa, 1, "INT100", 1, diemMoi, 2, loi
++    ));
++    const Loptinchi* lop = TimLopTinChiTheoMa(duLieu.dsLopTinChi(), 1);
++    assert(lop != nullptr);
++    assert(TimDangKy(lop->dssvdk, "N21DCCN001")->dk.DIEM == 9.25F);
++    assert(TimDangKy(lop->dssvdk, "N21DCCN002")->dk.DIEM == 7.5F);
++
++    const DangKy biTrung[2] = {
++        {"N21DCCN001", 5.0F},
++        {"n21dccn001", 6.0F},
++    };
++    assert(!manager.capNhatDanhSachDiem(
++        nienKhoa, 1, "INT100", 1, biTrung, 2, loi
++    ));
++    assert(TimDangKy(lop->dssvdk, "N21DCCN001")->dk.DIEM == 9.25F);
++
++    AppData docLai;
++    TaoDuLieu(docLai, loi);
++    assert(DocDanhSachLopTinChi(
++        fileDangKy.string(), docLai.dsLopTinChi(), loi
++    ));
++    const Loptinchi* lopDocLai = TimLopTinChiTheoMa(docLai.dsLopTinChi(), 1);
++    assert(lopDocLai != nullptr);
++    assert(TimDangKy(lopDocLai->dssvdk, "N21DCCN001")->dk.DIEM == 9.25F);
++    assert(TimDangKy(lopDocLai->dssvdk, "N21DCCN002")->dk.DIEM == 7.5F);
++
++    // Zero is a valid grade, distinct from the ungraded default.
++    const DangKy diemKhong{"N21DCCN001", 0.0F};
++    assert(manager.capNhatDanhSachDiem(nienKhoa, 1, "INT100", 1, &diemKhong, 1, loi));
++    assert(DocDanhSachLopTinChi(fileDangKy.string(), docLai.dsLopTinChi(), loi));
++    lopDocLai = TimLopTinChiTheoMa(docLai.dsLopTinChi(), 1);
++    const PTRDK dangKyCu = TimDangKy(lopDocLai->dssvdk, "N21DCCN001");
++    assert(dangKyCu != nullptr);
++    assert(dangKyCu->dk.DIEM == 0.0F);
++
++    std::filesystem::remove(fileDangKy);
++    std::filesystem::remove("score_test_temp.txt");
++    std::filesystem::remove("score_test_backup.txt");
++    return 0;
++}
+diff --git a/tests/python/test_grouped_persistence.py b/tests/python/test_grouped_persistence.py
+--- a/tests/python/test_grouped_persistence.py
++++ b/tests/python/test_grouped_persistence.py
+@@ -6,7 +6,7 @@
+ 
+ from bridge import (AppData, MonHoc, MonHocManager, Lop, SinhVien,
+                     LopSinhVienManager, LopTinChi, LopTinChiManager,
+-                    DangKyManager)
++                    DangKyManager, DiemManager)
+ 
+ YEAR = f'{date.today().year}-{date.today().year + 1}'
+ 
+@@ -23,11 +23,12 @@
+             'L1|Lớp một\nSV1|Nguyễn Văn|An|Nam|0901234567\n'
+             'SV2|Trần Thị|Bình|Nữ|0912345678\n#\nL2|Lớp rỗng\n#\n', encoding='utf-8')
+         self.credit_file.write_text(
+-            f'1|MH1|{YEAR}|1|1|1|50|0\nSV1|0|0\n#\n'
++            f'1|MH1|{YEAR}|1|1|1|50|0\nSV1|0|0|0\n#\n'
+             f'2|MH2|{YEAR}|1|1|1|50|0\n#\n', encoding='utf-8')
+         self.data = AppData()
+-        # The registration manager predates loading but must share its save path.
++        # Registration/score managers predate loading but must share its save path.
+         self.registrations = DangKyManager(self.data)
++        self.scores = DiemManager(self.data)
+         self.subjects = MonHocManager(self.data)
+         self.students = LopSinhVienManager(self.data)
+         self.credits = LopTinChiManager(self.data)
+@@ -41,18 +42,28 @@
+     def snapshot(self):
+         return {p.name: p.read_bytes() for p in self.root.glob('*.txt')}
+ 
+-    def test_interleaved_credit_registration_saves_preserve_children(self):
++    def score_rows(self):
++        return self.scores.lay_danh_sach_sinh_vien(YEAR, 1, 'MH1', 1)
++
++    def test_interleaved_credit_registration_and_score_saves_preserve_children(self):
+         untouched = (self.subject_file.read_bytes(), self.student_file.read_bytes())
+         self.registrations.dang_ky(1, 'SV2')
++        self.scores.cap_nhat_danh_sach_diem(YEAR, 1, 'MH1', 1, [
++            {'ma_sv': 'SV1', 'diem': 0}, {'ma_sv': 'SV2', 'diem': 8.75},
++        ])
+         self.credits.cap_nhat_lop_tin_chi(1, LopTinChi('MH1', YEAR, 1, 1, 1, 60))
+         self.registrations.huy_dang_ky(1, 'SV2')
+         text = self.credit_file.read_text(encoding='utf-8')
+         self.assertIn(f'1|MH1|{YEAR}|1|1|1|60|0\n', text)
+         self.assertIn('SV1|0|0\n', text)
+-        self.assertIn('SV2|-1|1\n', text)
++        self.assertIn('SV2|8.75|1\n', text)
+         self.credits.doc_danh_sach_lop_tin_chi(str(self.credit_file))
+         self.assertTrue(self.registrations.da_dang_ky(1, 'SV1'))
+         self.assertFalse(self.registrations.da_dang_ky(1, 'SV2'))
++        rows = self.score_rows()
++        self.assertEqual(len(rows), 1)
++        self.assertTrue(rows[0]['da_co_diem'])
++        self.assertEqual(rows[0]['diem'], 0)
+         self.assertEqual(untouched, (self.subject_file.read_bytes(), self.student_file.read_bytes()))
+         self.assertEqual({p.name for p in self.root.iterdir()},
+                          {'monhoc.txt', 'lopsinhvien.txt', 'loptinchi.txt'})
+@@ -140,6 +151,7 @@
+             lambda: self.credits.xoa_lop_tin_chi(2),
+             lambda: self.registrations.dang_ky(1, 'SV2'),
+             lambda: self.registrations.huy_dang_ky(1, 'SV1'),
++            lambda: self.scores.cap_nhat_danh_sach_diem(YEAR, 1, 'MH1', 1, [{'ma_sv': 'SV1', 'diem': 9}]),
+         ]
+         for operation in operations:
+             with self.assertRaises((ValueError, RuntimeError)):
+@@ -154,6 +166,8 @@
+         self.assertEqual(self.credits.tim_lop_tin_chi(1).so_sv_max, 50)
+         self.assertTrue(self.registrations.da_dang_ky(1, 'SV1'))
+         self.assertFalse(self.registrations.da_dang_ky(1, 'SV2'))
++        self.assertFalse(self.score_rows()[0]['da_co_diem'])
++        self.assertEqual(self.score_rows()[0]['diem'], -1)
+         for path in blockers:
+             path.rmdir()
+         self.registrations.dang_ky(1, 'SV2')
+diff --git a/tests/python/test_input_validation_contract.py b/tests/python/test_input_validation_contract.py
+--- a/tests/python/test_input_validation_contract.py
++++ b/tests/python/test_input_validation_contract.py
+@@ -9,6 +9,7 @@
+ from bridge import AppData, MonHocManager, LopSinhVienManager, MonHoc, Lop, SinhVien
+ from frontend.pages.subject_page import SubjectForm
+ from frontend.pages.class_student_page import StudentForm
++from frontend.pages.score_page import ScoreTable
+ 
+ 
+ class InputValidationContractTest(unittest.TestCase):
+@@ -34,6 +35,16 @@
+         self.assertTrue(student.phone_input.property("invalid"))
+         subject.close()
+         student.close()
++
++    def test_score_form_rejects_out_of_range_and_nonfinite_values(self):
++        table = ScoreTable(Mock())
++        table.set_students([{"ma_sv": "SV1", "ho": "Nguyen", "ten": "An", "diem": -1, "da_co_diem": False}])
++        for text in ("11", "-2", "nan", "inf"):
++            with self.subTest(text=text):
++                table.cellWidget(0, 4).setText(text)
++                with self.assertRaises(ValueError):
++                    table.score_updates(["SV1"])
++        table.close()
+ 
+     def test_file_input_still_rejects_bad_records_without_replacing_ram(self):
+         data = AppData()
+diff --git a/tests/python/test_registration_score_workflows.py b/tests/python/test_registration_score_workflows.py
+--- a/tests/python/test_registration_score_workflows.py
++++ b/tests/python/test_registration_score_workflows.py
+@@ -1,22 +1,28 @@
+-"""Integration checks for registration lists and persisted registration data."""
++"""Integration checks for registration lists and scores edited on shared RAM."""
+ import os
+ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+ from datetime import date
+ from pathlib import Path
+ from tempfile import TemporaryDirectory
+ import unittest
+-
+-from PyQt6.QtGui import QFontDatabase, QFont
+-from PyQt6.QtWidgets import QApplication, QLabel
+-from bridge import AppData, MonHocManager, LopSinhVienManager, LopTinChiManager, DangKyManager, LopTinChi
++from unittest.mock import patch, Mock
++
++from PyQt6.QtGui import QFontDatabase, QFont, QCloseEvent
++from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel
++from PyQt6.QtCore import Qt
++from PyQt6.QtTest import QTest
++from bridge import AppData, MonHocManager, LopSinhVienManager, LopTinChiManager, DangKyManager, DiemManager
+ from frontend.pages.credit_class_page import CreditClassPage
+ from frontend.pages.class_student_page import ClassStudentPage
+ from frontend.pages.registration_page import AvailableClassTable
++from frontend.pages.score_page import ScorePage
++from frontend.main_window import MainWindow
+ 
+ YEAR = f"{date.today().year}-{date.today().year + 1}"
+-
+-
+-class RegistrationWorkflowTest(unittest.TestCase):
++FILTER = (YEAR, 1, "MH1", 1)
++
++
++class RegistrationScoreWorkflowTest(unittest.TestCase):
+     @classmethod
+     def setUpClass(cls):
+         cls.app = QApplication.instance() or QApplication([])
+@@ -41,6 +47,7 @@
+         self.students = LopSinhVienManager(self.data)
+         self.credits = LopTinChiManager(self.data)
+         self.registrations = DangKyManager(self.data)
++        self.scores = DiemManager(self.data)
+         self.subjects.doc_danh_sach_mon_hoc(str(self.root / "subjects.txt"))
+         self.students.doc_danh_sach_lop_sinh_vien(str(self.root / "students.txt"))
+         self.credits.doc_danh_sach_lop_tin_chi(str(self.credit_file))
+@@ -52,6 +59,15 @@
+             page.deleteLater()
+         self.app.processEvents()
+         self.temp.cleanup()
++
++    def score_page(self):
++        page = ScorePage(self.scores, self.credits, self.subjects)
++        page._load_filter(FILTER, notify_empty=False)
++        self.pages.append(page)
++        return page
++
++    def score(self):
++        return self.scores.lay_danh_sach_sinh_vien(*FILTER)[0]["diem"]
+ 
+     def test_append_order_and_double_click_view_include_cancelled(self):
+         self.registrations.dang_ky(1, "SV2")
+@@ -132,13 +148,87 @@
+         with self.assertRaisesRegex(ValueError, "hết chỗ"):
+             self.registrations.dang_ky(3, "SV2")
+ 
++    def test_edit_changes_ram_only_discard_restores_and_save_persists_zero(self):
++        page = self.score_page()
++        before = self.credit_file.read_bytes()
++        page.table.cellWidget(0, 4).setText("8.5")
++        self.assertEqual(self.score(), 8.5)
++        self.assertTrue(page._dirty_students)
++        self.assertEqual(self.credit_file.read_bytes(), before)
++        self.assertTrue(page.discard_unsaved_scores())
++        self.assertEqual(self.score(), -1)
++        page.table.cellWidget(0, 4).setText("0")
++        self.assertTrue(page.save_scores())
++        self.assertIn("SV1|0|0\n", self.credit_file.read_text(encoding="utf-8"))
++        self.assertFalse(page._dirty_students)
++        self.assertEqual(self.score(), 0)
++        page.table.cellWidget(0, 4).clear()
++        self.assertEqual(self.score(), -1)
++        self.assertTrue(page.save_scores())
++        self.assertIn("SV1|-1|0\n", self.credit_file.read_text(encoding="utf-8"))
++
++    def test_failed_save_retains_dirty_ram_and_discard_still_works(self):
++        page = self.score_page()
++        before = self.credit_file.read_bytes()
++        page.table.cellWidget(0, 4).setText("9")
++        Path(str(self.credit_file) + ".tmp").mkdir()
++        self.assertFalse(page.save_scores())
++        self.assertEqual(self.score(), 9)
++        self.assertEqual(self.credit_file.read_bytes(), before)
++        self.assertTrue(page._dirty_students)
++        self.assertTrue(page.discard_unsaved_scores())
++        self.assertEqual(self.score(), -1)
++
++    def test_switching_class_discards_old_ram_changes(self):
++        page = self.score_page()
++        page.table.cellWidget(0, 4).setText("7")
++        with patch.object(page, "_current_filter", return_value=(YEAR, 1, "MH1", 2)), patch(
++            "frontend.pages.score_page.ConfirmDialog.ask", return_value=True
++        ):
++            page.load_students()
++        self.assertEqual(self.score(), -1)
++        self.assertFalse(page._dirty_students)
++
++    def test_close_prompt_discard_restores_ram_save_writes_file_and_cancel_stays(self):
++        page = self.score_page()
++        class WindowHarness(MainWindow):
++            def __init__(self, score_page):
++                QMainWindow.__init__(self)
++                self.score_page = score_page
++        window = WindowHarness(page)
++        self.pages.append(window)
++        save, discard = object(), object()
++        prompt = Mock()
++        page.table.cellWidget(0, 4).setText("6")
++        with patch("frontend.main_window.QMessageBox", return_value=prompt):
++            prompt.addButton.side_effect = [save, discard]
++            prompt.clickedButton.return_value = None
++            event = QCloseEvent()
++            window.closeEvent(event)
++            self.assertFalse(event.isAccepted())
++            self.assertEqual(self.score(), 6)
++            prompt.addButton.side_effect = [save, discard]
++            prompt.clickedButton.return_value = discard
++            event = QCloseEvent()
++            window.closeEvent(event)
++            self.assertTrue(event.isAccepted())
++            self.assertEqual(self.score(), -1)
++            page.table.cellWidget(0, 4).setText("7")
++            prompt.addButton.side_effect = [save, discard]
++            prompt.clickedButton.return_value = save
++            event = QCloseEvent()
++            window.closeEvent(event)
++            self.assertTrue(event.isAccepted())
++            self.assertIn("SV1|7|0\n", self.credit_file.read_text(encoding="utf-8"))
++
+     def test_legacy_ungraded_and_zero_migrate_without_losing_distinction(self):
+         self.credit_file.write_text(
+             f"1|MH1|{YEAR}|1|1|1|3|0\nSV1|0|0|0\nSV2|0|0|1\n#\n", encoding="utf-8")
+         self.credits.doc_danh_sach_lop_tin_chi(str(self.credit_file))
+-        self.credits.cap_nhat_lop_tin_chi(
+-            1, LopTinChi("MH1", YEAR, 1, 1, 1, 3)
+-        )
++        rows = self.scores.lay_danh_sach_sinh_vien(*FILTER)
++        self.assertEqual([r["diem"] for r in rows], [-1, 0])
++        self.assertEqual([r["da_co_diem"] for r in rows], [False, True])
++        self.scores.luu_diem()
+         self.assertIn("SV1|-1|0\nSV2|0|0\n", self.credit_file.read_text(encoding="utf-8"))
+ 
+ 
+diff --git a/tests/python/test_score_bridge.py b/tests/python/test_score_bridge.py
+new file mode 100644
+--- /dev/null
++++ b/tests/python/test_score_bridge.py
+@@ -0,0 +1,95 @@
++from pathlib import Path
++from tempfile import TemporaryDirectory
++import unittest
++
++from bridge import (
++    AppData,
++    DangKyManager,
++    DiemManager,
++    LopSinhVienManager,
++    LopTinChiManager,
++    MonHocManager,
++)
++
++
++DATA_DIR = Path(__file__).resolve().parents[2] / "backend" / "data"
++
++
++def _load_base_data(registration_file):
++    data = AppData()
++    subject_manager = MonHocManager(data)
++    credit_class_manager = LopTinChiManager(data)
++    student_manager = LopSinhVienManager(data)
++    registration_manager = DangKyManager(data)
++    score_manager = DiemManager(data)
++
++    subject_file = registration_file.parent / "monhoc.txt"
++    subject_file.write_text("INT118|Môn một|3|0\nINT109|Môn hai|3|0\nINT115|Môn ba|3|0\n", encoding="utf-8")
++    subject_manager.doc_danh_sach_mon_hoc(str(subject_file))
++    # Each test owns its credit-class snapshot; mutations never touch sample data.
++    registration_file.write_text(
++        "1|INT118|2026-2027|1|1|20|50|0\n#\n"
++        "2|INT109|2026-2027|1|1|26|45|0\n#\n"
++        "3|INT115|2026-2027|1|1|20|40|1\n#\n", encoding="utf-8"
++    )
++    credit_class_manager.doc_danh_sach_lop_tin_chi(str(registration_file))
++    student_file = registration_file.parent / "sinhvien.txt"
++    student_file.write_text("L1|Lớp một\nN21DCCN001|Nguyễn|An|Nam|0901234567\n#\n", encoding="utf-8")
++    student_manager.doc_danh_sach_lop_sinh_vien(str(student_file))
++    return data, registration_manager, score_manager
++
++
++class ScoreBridgeTest(unittest.TestCase):
++    def test_score_filter_update_and_persist(self):
++        with TemporaryDirectory() as directory:
++            registration_file = Path(directory) / "loptinchi.txt"
++            registration_file.write_text("", encoding="utf-8")
++            data, registration_manager, score_manager = _load_base_data(
++                registration_file
++            )
++
++            registration_manager.dang_ky(1, "N21DCCN001")
++            rows = score_manager.lay_danh_sach_sinh_vien(
++                "2026-2027", 1, "INT118", 1
++            )
++            self.assertEqual(len(rows), 1)
++            self.assertEqual(rows[0]["ma_sv"], "N21DCCN001")
++            self.assertEqual(rows[0]["diem"], -1)
++            self.assertFalse(rows[0]["da_co_diem"])
++
++            score_manager.cap_nhat_danh_sach_diem(
++                "2026-2027",
++                1,
++                "INT118",
++                1,
++                [{"ma_sv": "N21DCCN001", "diem": 8.75}],
++            )
++            rows = score_manager.lay_danh_sach_sinh_vien(
++                "2026-2027", 1, "INT118", 1
++            )
++            self.assertAlmostEqual(rows[0]["diem"], 8.75)
++            self.assertTrue(rows[0]["da_co_diem"])
++            self.assertIn(
++                "N21DCCN001|8.75|0",
++                registration_file.read_text(encoding="utf-8"),
++            )
++
++            del score_manager, registration_manager, data
++
++    def test_score_rejects_cancelled_class(self):
++        with TemporaryDirectory() as directory:
++            registration_file = Path(directory) / "loptinchi.txt"
++            registration_file.write_text("", encoding="utf-8")
++            data, registration_manager, score_manager = _load_base_data(
++                registration_file
++            )
++
++            with self.assertRaisesRegex(ValueError, "đã bị hủy"):
++                score_manager.lay_danh_sach_sinh_vien(
++                    "2026-2027", 1, "INT115", 1
++                )
++            del score_manager, registration_manager, data
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/python/test_search_feedback.py b/tests/python/test_search_feedback.py
+--- a/tests/python/test_search_feedback.py
++++ b/tests/python/test_search_feedback.py
+@@ -10,6 +10,7 @@
+ 
+ from frontend.components.inline_notice import InlineNotice
+ from frontend.pages.registration_page import RegistrationPage
++from frontend.pages.score_page import ScorePage
+ 
+ 
+ class SearchFeedbackTest(unittest.TestCase):
+@@ -19,12 +20,16 @@
+ 
+     def setUp(self):
+         self.widgets = []
++        # Patch where pages resolve the notification class.
++        self.score_popups = patch('frontend.pages.score_page.Notification')
++        self.score_notification = self.score_popups.start()
+ 
+     def tearDown(self):
+         for widget in self.widgets:
+             widget.close()
+             widget.deleteLater()
+         QTest.qWait(20)
++        self.score_popups.stop()
+ 
+     def show(self, widget):
+         self.widgets.append(widget)
+@@ -65,6 +70,27 @@
+         page.student_input.setText('SV2')
+         self.assertTrue(page.page_notice.isHidden())
+ 
++    def test_empty_scores_use_inline_notice_and_success_clears_it(self):
++        credits = Mock()
++        credits.lay_danh_sach_lop_tin_chi.return_value = [SimpleNamespace(
++            nien_khoa='2026-2027', hoc_ky=1, ma_mh='MH1', nhom=1, huy_lop=False,
++        )]
++        scores = Mock()
++        scores.lay_danh_sach_sinh_vien.return_value = []
++        page = self.show(ScorePage(scores, credits))
++        page.load_students()
++        self.assertEqual(page.empty_notice.message.text(), 'Không có dữ liệu')
++        self.assertFalse(page.empty_notice.banner.isHidden())
++        self.assertFalse(self.score_notification.mock_calls)
++        for combo in (page.year_input, page.semester_input, page.subject_input, page.group_input):
++            self.assertFalse(combo.property('invalid'))
++        scores.lay_danh_sach_sinh_vien.return_value = [
++            {'ma_sv': 'SV1', 'ho': 'Nguyen', 'ten': 'An', 'diem': 0, 'da_co_diem': False}
++        ]
++        page.load_students()
++        self.assertTrue(page.empty_notice.banner.isHidden())
++        self.assertEqual(page.table.rowCount(), 1)
++
+     def test_show_open_classes_requires_student_code(self):
+         page = self.show(RegistrationPage())
+         with patch.object(page, '_load_tables') as load:
+@@ -98,6 +124,15 @@
+             page.register_selected()
+             manager.dang_ky.assert_called_once_with(1, 'SV1')
+ 
++    def test_no_credit_classes_show_no_data_without_marking_combos(self):
++        page = self.show(ScorePage())
++        page.load_students()
++        self.assertEqual(page.empty_notice.message.text(), 'Không có dữ liệu')
++        self.assertFalse(page.empty_notice.banner.isHidden())
++        self.assertFalse(self.score_notification.mock_calls)
++        page.year_input.addItem('2026-2027', '2026-2027')
++        self.assertTrue(page.empty_notice.banner.isHidden())
++
+     def test_two_second_timeout_restarts_and_hiding_page_cancels(self):
+         notice = self.show(InlineNotice())
+         notice.show_message('Không có dữ liệu')

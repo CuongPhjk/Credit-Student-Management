@@ -649,11 +649,6 @@ QMenu::separator {
     color: #d8e4f3;
 }
 
-#sidebar QLabel#sidebarVersion {
-    color: #9eb3cb;
-    font-size: 11px;
-}
-
 #sidebar QPushButton {
     text-align: left;
     padding: 14px 18px;

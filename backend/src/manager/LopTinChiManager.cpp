@@ -1,14 +1,11 @@
-#include "../../manager/LopTinChiManager.h"
+#include "../KhaiBao.h"
 
-#include "../../include/file/XuLyTep.h"
-#include "../../include/functions/HamLopTinChi.h"
 
 namespace {
 
 Loptinchi* timTheoMa(DS_LTC& danhSach, int maLopTC) {
     for (int i = 0; i < danhSach.n; ++i) {
-        if (danhSach.nodes[i] != nullptr
-            && danhSach.nodes[i]->MALOPTC == maLopTC) {
+        if (danhSach.nodes[i]->MALOPTC == maLopTC) {
             return danhSach.nodes[i];
         }
     }
@@ -21,57 +18,57 @@ LopTinChiManager::LopTinChiManager(AppData& appData)
     : appData_(appData) {}
 
 bool LopTinChiManager::docDanhSachLopTinChi(
-    const std::string& tenFile,
+    std::string tenFile,
     std::string& loi
 ) {
-    if (!DocDanhSachLopTinChi(tenFile, appData_.dsLopTinChi(), loi)) {
+    if (!DocDanhSachLopTinChi(tenFile, appData_.dsLopTinChi, loi)) {
         return false;
     }
-    appData_.tenFileLopTinChi() = tenFile;
+    appData_.tenFileLopTinChi = tenFile;
     return true;
 }
 
-bool LopTinChiManager::luu(std::string& loi) const {
-    return appData_.tenFileLopTinChi().empty()
+bool LopTinChiManager::luu(std::string& loi) {
+    return appData_.tenFileLopTinChi.empty()
         || GhiDanhSachLopTinChi(
-            appData_.tenFileLopTinChi(), appData_.dsLopTinChi(), loi
+            appData_.tenFileLopTinChi, appData_.dsLopTinChi, loi
         );
 }
 
 bool LopTinChiManager::themLopTinChi(
-    const Loptinchi& lopTinChi,
+    Loptinchi lopTinChi,
     std::string& loi
 ) {
-    const int maTiepTheoCu = appData_.dsLopTinChi().maTiepTheo;
+    int maTiepTheoCu = appData_.dsLopTinChi.maTiepTheo;
     if (!ThemLopTinChi(
-        appData_.dsLopTinChi(), appData_.dsMonHoc(), lopTinChi, loi
+        appData_.dsLopTinChi, appData_.dsMonHoc, lopTinChi, loi
     )) {
         return false;
     }
-    const int maMoi = appData_.dsLopTinChi()
-        .nodes[appData_.dsLopTinChi().n - 1]->MALOPTC;
+    int maMoi = appData_.dsLopTinChi
+        .nodes[appData_.dsLopTinChi.n - 1]->MALOPTC;
     if (luu(loi)) {
         return true;
     }
     std::string loiKhoiPhuc;
-    XoaLopTinChi(appData_.dsLopTinChi(), maMoi, loiKhoiPhuc);
-    appData_.dsLopTinChi().maTiepTheo = maTiepTheoCu;
+    XoaLopTinChi(appData_.dsLopTinChi, maMoi, loiKhoiPhuc);
+    appData_.dsLopTinChi.maTiepTheo = maTiepTheoCu;
     return false;
 }
 
 bool LopTinChiManager::capNhatLopTinChi(
     int maLopTC,
-    const Loptinchi& duLieuMoi,
+    Loptinchi duLieuMoi,
     std::string& loi
 ) {
-    Loptinchi* hienTai = timTheoMa(appData_.dsLopTinChi(), maLopTC);
+    Loptinchi* hienTai = timTheoMa(appData_.dsLopTinChi, maLopTC);
     if (hienTai == nullptr) {
-        loi = "Khong tim thay lop tin chi.";
+        loi = "Không tìm thấy lớp tín chỉ.";
         return false;
     }
-    const Loptinchi duLieuCu = *hienTai;
+    Loptinchi duLieuCu = *hienTai;
     if (!HieuChinhLopTinChi(
-        appData_.dsLopTinChi(), appData_.dsMonHoc(),
+        appData_.dsLopTinChi, appData_.dsMonHoc,
         maLopTC, duLieuMoi, loi
     )) {
         return false;
@@ -81,27 +78,27 @@ bool LopTinChiManager::capNhatLopTinChi(
     }
     std::string loiKhoiPhuc;
     HieuChinhLopTinChi(
-        appData_.dsLopTinChi(), appData_.dsMonHoc(),
+        appData_.dsLopTinChi, appData_.dsMonHoc,
         maLopTC, duLieuCu, loiKhoiPhuc
     );
     return false;
 }
 
 bool LopTinChiManager::xoaLopTinChi(int maLopTC, std::string& loi) {
-    Loptinchi* hienTai = timTheoMa(appData_.dsLopTinChi(), maLopTC);
+    Loptinchi* hienTai = timTheoMa(appData_.dsLopTinChi, maLopTC);
     if (hienTai == nullptr) {
-        loi = "Khong tim thay lop tin chi.";
+        loi = "Không tìm thấy lớp tín chỉ.";
         return false;
     }
-    const Loptinchi duLieuCu = *hienTai;
-    if (!XoaLopTinChi(appData_.dsLopTinChi(), maLopTC, loi)) {
+    Loptinchi duLieuCu = *hienTai;
+    if (!XoaLopTinChi(appData_.dsLopTinChi, maLopTC, loi)) {
         return false;
     }
     if (luu(loi)) {
         return true;
     }
 
-    DS_LTC& danhSach = appData_.dsLopTinChi();
+    DS_LTC& danhSach = appData_.dsLopTinChi;
     int viTriChen = 0;
     while (viTriChen < danhSach.n
            && danhSach.nodes[viTriChen]->MALOPTC < maLopTC) {
@@ -118,8 +115,8 @@ bool LopTinChiManager::xoaLopTinChi(int maLopTC, std::string& loi) {
 bool LopTinChiManager::timLopTinChi(
     int maLopTC,
     Loptinchi& ketQua
-) const {
-    const Loptinchi* lop = timTheoMa(appData_.dsLopTinChi(), maLopTC);
+) {
+    Loptinchi* lop = timTheoMa(appData_.dsLopTinChi, maLopTC);
     if (lop == nullptr) {
         return false;
     }
@@ -127,22 +124,10 @@ bool LopTinChiManager::timLopTinChi(
     return true;
 }
 
-int LopTinChiManager::layDanhSachLopTinChi(
-    Loptinchi dsKetQua[],
-    int kichThuocToiDa
-) const {
-    if (dsKetQua == nullptr || kichThuocToiDa <= 0) {
-        return 0;
-    }
-    const DS_LTC& danhSach = appData_.dsLopTinChi();
-    const int soLuong = danhSach.n < kichThuocToiDa
-        ? danhSach.n : kichThuocToiDa;
-    for (int i = 0; i < soLuong; ++i) {
-        dsKetQua[i] = *danhSach.nodes[i];
-    }
-    return soLuong;
+Loptinchi** LopTinChiManager::layDanhSachLopTinChi(int& soLuong) {
+    return LayDanhSachLopTinChi(appData_.dsLopTinChi, soLuong);
 }
 
-int LopTinChiManager::tongSoLopTinChi() const {
-    return appData_.dsLopTinChi().n;
+int LopTinChiManager::tongSoLopTinChi() {
+    return appData_.dsLopTinChi.n;
 }

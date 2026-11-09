@@ -1,20 +1,11 @@
-#include "HamMonHoc.h"
-
-#include "../../include/utils/XuLyChuoi.h"
-
+#include "../KhaiBao.h"
 using namespace std;
 
-namespace {
-
-bool dungTruocTheoTen(const Monhoc& left, const Monhoc& right)
-{
-    const int soSanhTen = SoSanhKhongPhanBietHoaThuong(
-        left.TENMH, right.TENMH
-    );
-    if (soSanhTen != 0)
-        return soSanhTen < 0;
-
-    return left.MAMH < right.MAMH;
+Monhoc ChuanHoaMonHoc(Monhoc monHoc) {
+    Monhoc ketQua = monHoc;
+    ketQua.MAMH = ChuanHoaMa(monHoc.MAMH);
+    ketQua.TENMH = XoaKhoangTrangThua(monHoc.TENMH);
+    return ketQua;
 }
 
 treeMH TimNodeTheMang(treeMH root)
@@ -23,11 +14,10 @@ treeMH TimNodeTheMang(treeMH root)
     {
         root = root->left;
     }
-
     return root;
 }
 
-bool XoaNodeMonHoc(treeMH& root, const string& maMH)
+bool XoaNodeMonHoc(treeMH& root, string maMH)
 {
     if (root == nullptr)
         return false;
@@ -55,13 +45,13 @@ bool XoaNodeMonHoc(treeMH& root, const string& maMH)
     }
 
     treeMH successor = TimNodeTheMang(root->right);
-    const string maSuccessor = successor->mh.MAMH;
+    string maSuccessor = successor->mh.MAMH;
     root->mh = successor->mh;
     XoaNodeMonHoc(root->right, maSuccessor);
     return true;
 }
 
-bool ThemNodeMonHoc(treeMH& root, const Monhoc& monHoc)
+bool ThemNodeMonHoc(treeMH& root, Monhoc monHoc)
 {
     if (root == nullptr)
     {
@@ -78,65 +68,8 @@ bool ThemNodeMonHoc(treeMH& root, const Monhoc& monHoc)
     return false;
 }
 
-}  // namespace
 
-void SapXepMonHocTheoTen(Monhoc dsMonHoc[], int soLuong)
-{
-    if (dsMonHoc == nullptr || soLuong <= 1)
-        return;
-
-    for (int i = 1; i < soLuong; ++i)
-    {
-        Monhoc current = dsMonHoc[i];
-        int j = i - 1;
-        while (j >= 0 && dungTruocTheoTen(current, dsMonHoc[j]))
-        {
-            dsMonHoc[j + 1] = dsMonHoc[j];
-            --j;
-        }
-        dsMonHoc[j + 1] = current;
-    }
-}
-
-int TongSoTinChi(const Monhoc& monHoc)
-{
-    return monHoc.STCLT + monHoc.STCTH;
-}
-
-void GiaiPhongCayMonHoc(treeMH& root)
-{
-    if (root == nullptr)
-        return;
-
-    GiaiPhongCayMonHoc(root->left);
-    GiaiPhongCayMonHoc(root->right);
-    delete root;
-    root = nullptr;
-}
-
-int DemMonHoc(treeMH root)
-{
-    if (root == nullptr)
-        return 0;
-
-    return 1 + DemMonHoc(root->left) + DemMonHoc(root->right);
-}
-
-void ChuyenCayMonHocSangMang(
-    treeMH root,
-    Monhoc dsMonHoc[],
-    int& soLuong
-)
-{
-    if (root == nullptr || dsMonHoc == nullptr)
-        return;
-
-    ChuyenCayMonHocSangMang(root->left, dsMonHoc, soLuong);
-    dsMonHoc[soLuong++] = root->mh;
-    ChuyenCayMonHocSangMang(root->right, dsMonHoc, soLuong);
-}
-
-treeMH TimMonHoc(treeMH root, const string& maMH)
+treeMH TimMonHoc(treeMH root, string maMH)
 {
     while (root != nullptr)
     {
@@ -152,21 +85,13 @@ treeMH TimMonHoc(treeMH root, const string& maMH)
     return nullptr;
 }
 
-bool KiemTraTrungMaMonHoc(treeMH root, const string& maMH)
-{
-    return TimMonHoc(root, maMH) != nullptr;
-}
-
 bool MonHocDaMoLopTinChi(
-    const DS_LTC& dsLTC,
-    const string& maMH
+    DS_LTC& dsLTC,
+    string maMH
 )
 {
     for (int i = 0; i < dsLTC.n; i++)
     {
-        if (dsLTC.nodes[i] == NULL)
-            continue;
-
         if (dsLTC.nodes[i]->MAMH == maMH)
             return true;
     }
@@ -174,139 +99,85 @@ bool MonHocDaMoLopTinChi(
     return false;
 }
 
-bool ThemMonHoc(treeMH& root, const Monhoc& monHoc, string& loi) {
+bool ThemMonHoc(treeMH& root, int& n, Monhoc monHoc, string& loi) {
     loi.clear();
-
-    if (monHoc.MAMH.empty()) {
-        loi = "Ma mon hoc khong duoc de trong!";
+    Monhoc daChuanHoa = ChuanHoaMonHoc(monHoc);
+    if (!ThemNodeMonHoc(root, daChuanHoa)) {
+        loi = "Mã môn học đã tồn tại.";
         return false;
     }
-
-    if (monHoc.MAMH.length() > 10) {
-        loi = "Ma mon hoc toi da 10 ky tu!";
-        return false;
-    }
-
-    if (monHoc.TENMH.empty()) {
-        loi = "Ten mon hoc khong duoc de trong!";
-        return false;
-    }
-
-    if (DemSoKyTuUtf8(monHoc.TENMH) > 50) {
-        loi = "Ten mon hoc toi da 50 ky tu!";
-        return false;
-    }
-
-    if (monHoc.STCLT <= 0) {
-        loi = "So tin chi ly thuyet phai lon hon 0!";
-        return false;
-    }
-
-    if (monHoc.STCTH < 0) {
-        loi = "So tin chi thuc hanh khong duoc am!";
-        return false;
-    }
-
-    if (!ThemNodeMonHoc(root, monHoc))
-    {
-        loi = "Ma mon hoc da ton tai!";
-        return false;
-    }
-
+    ++n;
     return true;
 }
 
 bool XoaMonHoc(
     treeMH& root,
-    const DS_LTC& dsLTC,
-    const string& maMH,
+    int& n,
+    DS_LTC& dsLTC,
+    string maMH,
     string& loi
 )
 {
     loi.clear();
 
-    if (maMH.empty())
-    {
-        loi = "Ma mon hoc khong duoc de trong.";
-        return false;
-    }
-
     if (root == nullptr)
     {
-        loi = "Danh sach mon hoc dang rong.";
+        loi = "Danh sách môn học đang rỗng.";
         return false;
     }
 
     if (MonHocDaMoLopTinChi(dsLTC, maMH))
     {
-        loi = "Mon hoc dang duoc su dung trong lop tin chi.";
+        loi = "Môn học đang được sử dụng trong lớp tín chỉ.";
         return false;
     }
 
     if (!XoaNodeMonHoc(root, maMH))
     {
-        loi = "Khong tim thay mon hoc.";
+        loi = "Không tìm thấy môn học.";
         return false;
     }
+    --n;
     return true;
 }
 
 bool HieuChinhMonHoc(
     treeMH& root,
-    const string& maMH,
-    const Monhoc& duLieuMoi,
+    string maMH,
+    Monhoc duLieuMoi,
     string& loi
-)
-{
+) {
     loi.clear();
-
-    if (maMH.empty())
-    {
-        loi = "Ma mon hoc khong duoc de trong!";
+    Monhoc daChuanHoa = duLieuMoi;
+    daChuanHoa.MAMH = maMH;
+    daChuanHoa = ChuanHoaMonHoc(daChuanHoa);
+    if (root == nullptr) {
+        loi = "Danh sách môn học đang rỗng.";
         return false;
     }
-
-    if (root == nullptr)
-    {
-        loi = "Danh sach mon hoc dang rong!";
+    treeMH monHocCanSua = TimMonHoc(root, daChuanHoa.MAMH);
+    if (monHocCanSua == nullptr) {
+        loi = "Không tìm thấy môn học.";
         return false;
     }
-
-    treeMH monHocCanSua = TimMonHoc(root, maMH);
-
-    if (monHocCanSua == nullptr)
-    {
-        loi = "Khong tim thay mon hoc!";
-        return false;
-    }
-
-    if (duLieuMoi.TENMH.empty())
-    {
-        loi = "Ten mon hoc khong duoc de trong!";
-        return false;
-    }
-
-    if (DemSoKyTuUtf8(duLieuMoi.TENMH) > 50)
-    {
-        loi = "Ten mon hoc toi da 50 ky tu!";
-        return false;
-    }
-
-    if (duLieuMoi.STCLT <= 0)
-    {
-        loi = "So tin chi ly thuyet phai lon hon 0!";
-        return false;
-    }
-
-    if (duLieuMoi.STCTH < 0)
-    {
-        loi = "So tin chi thuc hanh khong duoc am!";
-        return false;
-    }
-
-    monHocCanSua->mh.TENMH = duLieuMoi.TENMH;
-    monHocCanSua->mh.STCLT = duLieuMoi.STCLT;
-    monHocCanSua->mh.STCTH = duLieuMoi.STCTH;
-
+    monHocCanSua->mh.TENMH = daChuanHoa.TENMH;
+    monHocCanSua->mh.STCLT = daChuanHoa.STCLT;
+    monHocCanSua->mh.STCTH = daChuanHoa.STCTH;
     return true;
+}
+
+void ChepMonHocTheoMa(treeMH root, treeMH ketQua[], int& viTri) {
+    if (root == nullptr) return;
+    ChepMonHocTheoMa(root->left, ketQua, viTri);
+    ketQua[viTri++] = root;
+    ChepMonHocTheoMa(root->right, ketQua, viTri);
+}
+
+treeMH* LayDanhSachMonHoc(treeMH root, int n, int& soLuong) {
+    soLuong = n;
+    if (soLuong == 0) return nullptr;
+    treeMH* ketQua = new treeMH[soLuong];
+    int viTri = 0;
+    ChepMonHocTheoMa(root, ketQua, viTri);
+    return ketQua;
 }

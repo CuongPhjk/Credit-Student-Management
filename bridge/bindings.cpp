@@ -1,26 +1,28 @@
-#include <memory>
 #include <string>
 
 #include <pybind11/pybind11.h>
 
-#include "AppData.h"
-#include "DangKyManager.h"
-#include "DiemManager.h"
-#include "HamLopTinChi.h"
-#include "HamSinhVien.h"
-#include "LopSinhVienManager.h"
-#include "LopTinChiManager.h"
-#include "MonHocManager.h"
+#include "../backend/src/KhaiBao.h"
 
 namespace py = pybind11;
 
 namespace {
 
+
+template <typename T>
+py::list chuyenMangThanhDanhSach(T* danhSach, int soLuong) {
+    py::list ketQua;
+    for (int i = 0; i < soLuong; ++i)
+        ketQua.append(py::cast(danhSach[i]));
+    delete[] danhSach;
+    return ketQua;
+}
+
 Monhoc taoMonHocMacDinh() {
     return Monhoc{"", "", 0, 0};
 }
 
-bool themMonHoc(MonHocManager& manager, const Monhoc& monHoc) {
+bool themMonHoc(MonHocManager& manager, Monhoc monHoc) {
     std::string loi;
     if (!manager.themMonHoc(monHoc, loi)) {
         throw py::value_error(loi);
@@ -30,8 +32,8 @@ bool themMonHoc(MonHocManager& manager, const Monhoc& monHoc) {
 
 bool capNhatMonHoc(
     MonHocManager& manager,
-    const std::string& maMH,
-    const Monhoc& duLieuMoi
+    std::string maMH,
+    Monhoc duLieuMoi
 ) {
     std::string loi;
     if (!manager.capNhatMonHoc(maMH, duLieuMoi, loi)) {
@@ -40,7 +42,7 @@ bool capNhatMonHoc(
     return true;
 }
 
-bool xoaMonHoc(MonHocManager& manager, const std::string& maMH) {
+bool xoaMonHoc(MonHocManager& manager, std::string maMH) {
     std::string loi;
     if (!manager.xoaMonHoc(maMH, loi)) {
         throw py::value_error(loi);
@@ -48,7 +50,7 @@ bool xoaMonHoc(MonHocManager& manager, const std::string& maMH) {
     return true;
 }
 
-bool docDanhSachMonHoc(MonHocManager& manager, const std::string& tenFile) {
+bool docDanhSachMonHoc(MonHocManager& manager, std::string tenFile) {
     std::string loi;
     if (!manager.docDanhSachMonHoc(tenFile, loi)) {
         throw std::runtime_error(loi);
@@ -56,7 +58,7 @@ bool docDanhSachMonHoc(MonHocManager& manager, const std::string& tenFile) {
     return true;
 }
 
-py::object timMonHoc(const MonHocManager& manager, const std::string& maMH) {
+py::object timMonHoc(MonHocManager& manager, std::string maMH) {
     Monhoc ketQua = taoMonHocMacDinh();
     if (!manager.timMonHoc(maMH, ketQua)) {
         return py::none();
@@ -64,27 +66,13 @@ py::object timMonHoc(const MonHocManager& manager, const std::string& maMH) {
     return py::cast(ketQua);
 }
 
-py::list layDanhSachMonHoc(const MonHocManager& manager) {
-    const int soLuong = manager.tongSoMonHoc();
+py::list layDanhSachMonHoc(MonHocManager& manager) {
+    int soLuong;
+    treeMH* danhSach = manager.layDanhSachMonHoc(soLuong);
     py::list ketQua;
-    if (soLuong <= 0) {
-        return ketQua;
-    }
-
-    std::unique_ptr<Monhoc[]> dsMonHoc(new Monhoc[soLuong]);
-    const int soPhanTuDaGhi = manager.layDanhSachMonHoc(
-        dsMonHoc.get(),
-        soLuong
-    );
-    for (int i = 0; i < soPhanTuDaGhi; ++i) {
-        const Monhoc& monHoc = dsMonHoc[i];
-        ketQua.append(py::cast(Monhoc{
-            monHoc.MAMH,
-            monHoc.TENMH,
-            monHoc.STCLT,
-            monHoc.STCTH
-        }));
-    }
+    for (int i = 0; i < soLuong; ++i)
+        ketQua.append(py::cast(danhSach[i]->mh, py::return_value_policy::copy));
+    delete[] danhSach;
     return ketQua;
 }
 
@@ -92,7 +80,7 @@ Loptinchi taoLopTinChiMacDinh() {
     return Loptinchi{0, "", "", 1, 1, 1, 1, false, nullptr};
 }
 
-bool themLopTinChi(LopTinChiManager& manager, const Loptinchi& lopTinChi) {
+bool themLopTinChi(LopTinChiManager& manager, Loptinchi lopTinChi) {
     std::string loi;
     if (!manager.themLopTinChi(lopTinChi, loi)) {
         throw py::value_error(loi);
@@ -103,7 +91,7 @@ bool themLopTinChi(LopTinChiManager& manager, const Loptinchi& lopTinChi) {
 bool capNhatLopTinChi(
     LopTinChiManager& manager,
     int maLopTC,
-    const Loptinchi& duLieuMoi
+    Loptinchi duLieuMoi
 ) {
     std::string loi;
     if (!manager.capNhatLopTinChi(maLopTC, duLieuMoi, loi)) {
@@ -122,7 +110,7 @@ bool xoaLopTinChi(LopTinChiManager& manager, int maLopTC) {
 
 bool docDanhSachLopTinChi(
     LopTinChiManager& manager,
-    const std::string& tenFile
+    std::string tenFile
 ) {
     std::string loi;
     if (!manager.docDanhSachLopTinChi(tenFile, loi)) {
@@ -131,7 +119,7 @@ bool docDanhSachLopTinChi(
     return true;
 }
 
-py::object timLopTinChi(const LopTinChiManager& manager, int maLopTC) {
+py::object timLopTinChi(LopTinChiManager& manager, int maLopTC) {
     Loptinchi ketQua = taoLopTinChiMacDinh();
     if (!manager.timLopTinChi(maLopTC, ketQua)) {
         return py::none();
@@ -139,20 +127,13 @@ py::object timLopTinChi(const LopTinChiManager& manager, int maLopTC) {
     return py::cast(ketQua);
 }
 
-py::list layDanhSachLopTinChi(const LopTinChiManager& manager) {
-    const int soLuong = manager.tongSoLopTinChi();
+py::list layDanhSachLopTinChi(LopTinChiManager& manager) {
+    int soLuong;
+    Loptinchi** danhSach = manager.layDanhSachLopTinChi(soLuong);
     py::list ketQua;
-    if (soLuong <= 0) {
-        return ketQua;
-    }
-    std::unique_ptr<Loptinchi[]> danhSach(new Loptinchi[soLuong]);
-    const int daGhi = manager.layDanhSachLopTinChi(
-        danhSach.get(), soLuong
-    );
-    for (int i = 0; i < daGhi; ++i) {
-        ketQua.append(py::cast(danhSach[i]));
-    }
-    return ketQua;
+    for (int i = 0; i < soLuong; ++i)
+        ketQua.append(py::cast(*danhSach[i], py::return_value_policy::copy));
+    return ketQua;  // Borrowed original array: do not delete[].
 }
 
 Lop taoLopMacDinh() {
@@ -165,7 +146,7 @@ Sinhvien taoSinhVienMacDinh() {
 
 bool docDanhSachLopSinhVien(
     LopSinhVienManager& manager,
-    const std::string& tenFile
+    std::string tenFile
 ) {
     std::string loi;
     if (!manager.docDanhSachLopSinhVien(tenFile, loi)) {
@@ -174,7 +155,7 @@ bool docDanhSachLopSinhVien(
     return true;
 }
 
-bool themLop(LopSinhVienManager& manager, const Lop& lop) {
+bool themLop(LopSinhVienManager& manager, Lop lop) {
     std::string loi;
     if (!manager.themLop(lop, loi)) {
         throw py::value_error(loi);
@@ -184,8 +165,8 @@ bool themLop(LopSinhVienManager& manager, const Lop& lop) {
 
 bool capNhatLop(
     LopSinhVienManager& manager,
-    const std::string& maLop,
-    const std::string& tenLopMoi
+    std::string maLop,
+    std::string tenLopMoi
 ) {
     std::string loi;
     if (!manager.capNhatLop(maLop, tenLopMoi, loi)) {
@@ -194,7 +175,7 @@ bool capNhatLop(
     return true;
 }
 
-bool xoaLop(LopSinhVienManager& manager, const std::string& maLop) {
+bool xoaLop(LopSinhVienManager& manager, std::string maLop) {
     std::string loi;
     if (!manager.xoaLop(maLop, loi)) {
         throw py::value_error(loi);
@@ -203,8 +184,8 @@ bool xoaLop(LopSinhVienManager& manager, const std::string& maLop) {
 }
 
 py::object timLop(
-    const LopSinhVienManager& manager,
-    const std::string& maLop
+    LopSinhVienManager& manager,
+    std::string maLop
 ) {
     Lop ketQua = taoLopMacDinh();
     if (!manager.timLop(maLop, ketQua)) {
@@ -213,24 +194,16 @@ py::object timLop(
     return py::cast(ketQua);
 }
 
-py::list layDanhSachLop(const LopSinhVienManager& manager) {
-    const int soLuong = manager.tongSoLop();
-    py::list ketQua;
-    if (soLuong <= 0) {
-        return ketQua;
-    }
-    std::unique_ptr<Lop[]> danhSach(new Lop[soLuong]);
-    const int daGhi = manager.layDanhSachLop(danhSach.get(), soLuong);
-    for (int i = 0; i < daGhi; ++i) {
-        ketQua.append(py::cast(danhSach[i]));
-    }
-    return ketQua;
+py::list layDanhSachLop(LopSinhVienManager& manager) {
+    int soLuong;
+    Lop* danhSach = manager.layDanhSachLop(soLuong);
+    return chuyenMangThanhDanhSach(danhSach, soLuong);
 }
 
 bool themSinhVien(
     LopSinhVienManager& manager,
-    const std::string& maLop,
-    const Sinhvien& sinhVien
+    std::string maLop,
+    Sinhvien sinhVien
 ) {
     std::string loi;
     if (!manager.themSinhVien(maLop, sinhVien, loi)) {
@@ -241,8 +214,8 @@ bool themSinhVien(
 
 bool capNhatSinhVien(
     LopSinhVienManager& manager,
-    const std::string& maSV,
-    const Sinhvien& duLieuMoi
+    std::string maSV,
+    Sinhvien duLieuMoi
 ) {
     std::string loi;
     if (!manager.capNhatSinhVien(maSV, duLieuMoi, loi)) {
@@ -253,7 +226,7 @@ bool capNhatSinhVien(
 
 bool xoaSinhVien(
     LopSinhVienManager& manager,
-    const std::string& maSV
+    std::string maSV
 ) {
     std::string loi;
     if (!manager.xoaSinhVien(maSV, loi)) {
@@ -263,8 +236,8 @@ bool xoaSinhVien(
 }
 
 py::object timSinhVien(
-    const LopSinhVienManager& manager,
-    const std::string& maSV
+    LopSinhVienManager& manager,
+    std::string maSV
 ) {
     Sinhvien ketQua = taoSinhVienMacDinh();
     std::string maLop;
@@ -275,8 +248,8 @@ py::object timSinhVien(
 }
 
 py::object timThongTinSinhVien(
-    const LopSinhVienManager& manager,
-    const std::string& maSV
+    LopSinhVienManager& manager,
+    std::string maSV
 ) {
     Sinhvien ketQua = taoSinhVienMacDinh();
     std::string maLop;
@@ -290,28 +263,32 @@ py::object timThongTinSinhVien(
 }
 
 py::list layDanhSachSinhVien(
-    const LopSinhVienManager& manager,
-    const std::string& maLop
+    LopSinhVienManager& manager, string maLop
 ) {
-    const int soLuong = manager.tongSoSinhVienTrongLop(maLop);
+    int soLuong;
+    PTRSV* danhSach = manager.layDanhSachSinhVien(maLop, soLuong);
     py::list ketQua;
-    if (soLuong <= 0) {
-        return ketQua;
-    }
-    std::unique_ptr<Sinhvien[]> danhSach(new Sinhvien[soLuong]);
-    const int daGhi = manager.layDanhSachSinhVien(
-        maLop, danhSach.get(), soLuong
-    );
-    for (int i = 0; i < daGhi; ++i) {
-        ketQua.append(py::cast(danhSach[i]));
-    }
+    for (int i = 0; i < soLuong; ++i)
+        ketQua.append(py::cast(danhSach[i]->sv, py::return_value_policy::copy));
+    delete[] danhSach;
     return ketQua;
+}
+
+py::list laySinhVienTheoMa(LopSinhVienManager& manager, string maLop, bool giamDan) {
+    int soLuong;
+    PTRSV* danhSach = manager.laySinhVienTheoMa(maLop, soLuong);
+    py::list ketQua;
+    for (int i = 0; i < soLuong; ++i) {
+        int viTri = giamDan ? soLuong - 1 - i : i;
+        ketQua.append(py::cast(danhSach[viTri]->sv, py::return_value_policy::copy));
+    }
+    return ketQua;  // Manager owns the cached array; do not delete[].
 }
 
 bool dangKyLop(
     DangKyManager& manager,
     int maLopTC,
-    const std::string& maSV
+    std::string maSV
 ) {
     std::string loi;
     if (!manager.dangKy(maLopTC, maSV, loi)) {
@@ -323,7 +300,7 @@ bool dangKyLop(
 bool huyDangKyLop(
     DangKyManager& manager,
     int maLopTC,
-    const std::string& maSV
+    std::string maSV
 ) {
     std::string loi;
     if (!manager.huyDangKy(maLopTC, maSV, loi)) {
@@ -332,93 +309,26 @@ bool huyDangKyLop(
     return true;
 }
 
-py::list layDanhSachSinhVienNhapDiem(
-    const DiemManager& manager,
-    const std::string& nienKhoa,
-    int hocKy,
-    const std::string& maMH,
-    int nhom
-) {
-    std::string loi;
-    const int soLuong = manager.demSinhVien(
-        nienKhoa, hocKy, maMH, nhom, loi
-    );
-    if (soLuong < 0) {
-        throw py::value_error(loi);
-    }
-
+py::list laySinhVienDangKy(DangKyManager& manager, int maLopTC) {
+    int soLuong;
+    string loi;
+    PTRDK* danhSach = manager.layDanhSach(maLopTC, soLuong, loi);
+    if (soLuong < 0) throw py::value_error(loi);
     py::list ketQua;
-    if (soLuong == 0) {
-        return ketQua;
-    }
-    std::unique_ptr<Diemsinhvien[]> danhSach(
-        new Diemsinhvien[soLuong]
-    );
-    const int daGhi = manager.layDanhSachSinhVien(
-        nienKhoa, hocKy, maMH, nhom,
-        danhSach.get(), soLuong, loi
-    );
-    if (daGhi < 0) {
-        throw std::runtime_error(loi);
-    }
-    for (int i = 0; i < daGhi; ++i) {
-        py::dict dong;
-        dong["ma_sv"] = danhSach[i].MASV;
-        dong["ho"] = danhSach[i].HO;
-        dong["ten"] = danhSach[i].TEN;
-        dong["diem"] = danhSach[i].DIEM;
-        dong["da_co_diem"] = danhSach[i].DADIEM;
-        ketQua.append(dong);
-    }
+    try {
+        for (int i = 0; i < soLuong; ++i) {
+            Sinhvien sv;
+            if (!manager.timSinhVien(danhSach[i]->dk.MASV, sv))
+                throw py::value_error("Không tìm thấy thông tin sinh viên " + danhSach[i]->dk.MASV);
+            py::dict dong;
+            dong["ma_sv"] = danhSach[i]->dk.MASV;
+            dong["ho_ten"] = sv.HO + " " + sv.TEN;
+            dong["da_huy"] = danhSach[i]->dk.HUYDK;
+            ketQua.append(dong);
+        }
+    } catch (...) { delete[] danhSach; throw; }
+    delete[] danhSach;
     return ketQua;
-}
-
-bool capNhatDanhSachDiem(
-    DiemManager& manager,
-    const std::string& nienKhoa,
-    int hocKy,
-    const std::string& maMH,
-    int nhom,
-    const py::list& danhSachDiem
-) {
-    const int soLuong = static_cast<int>(py::len(danhSachDiem));
-    if (soLuong <= 0) {
-        throw py::value_error("Danh sach diem cap nhat khong duoc de trong.");
-    }
-    std::unique_ptr<Diemcapnhat[]> danhSachMoi(
-        new Diemcapnhat[soLuong]
-    );
-    for (int i = 0; i < soLuong; ++i) {
-        py::handle muc = danhSachDiem[i];
-        if (!py::isinstance<py::dict>(muc)) {
-            throw py::value_error(
-                "Moi dong cap nhat diem phai gom ma_sv va diem."
-            );
-        }
-        py::dict dong = py::reinterpret_borrow<py::dict>(muc);
-        if (!dong.contains("ma_sv") || !dong.contains("diem")) {
-            throw py::value_error(
-                "Moi dong cap nhat diem phai gom ma_sv va diem."
-            );
-        }
-        try {
-            danhSachMoi[i].MASV = py::cast<std::string>(dong["ma_sv"]);
-            danhSachMoi[i].DIEM = py::cast<float>(dong["diem"]);
-        } catch (const py::cast_error&) {
-            throw py::value_error(
-                "Ma sinh vien phai la chuoi va diem phai la so."
-            );
-        }
-    }
-
-    std::string loi;
-    if (!manager.capNhatDanhSachDiem(
-        nienKhoa, hocKy, maMH, nhom,
-        danhSachMoi.get(), soLuong, loi
-    )) {
-        throw py::value_error(loi);
-    }
-    return true;
 }
 
 }  // namespace
@@ -430,8 +340,8 @@ PYBIND11_MODULE(_credit_backend, module) {
         .def(py::init(&taoMonHocMacDinh))
         .def(
             py::init([](
-                const std::string& maMH,
-                const std::string& tenMH,
+                std::string maMH,
+                std::string tenMH,
                 int stcLT,
                 int stcTH
             ) {
@@ -448,7 +358,7 @@ PYBIND11_MODULE(_credit_backend, module) {
         .def_readwrite("stc_th", &Monhoc::STCTH)
         .def_property_readonly(
             "tong_tin_chi",
-            [](const Monhoc& monHoc) {
+            [](Monhoc monHoc) {
                 return monHoc.STCLT + monHoc.STCTH;
             }
         );
@@ -457,8 +367,8 @@ PYBIND11_MODULE(_credit_backend, module) {
         .def(py::init(&taoLopTinChiMacDinh))
         .def(
             py::init([](
-                const std::string& maMH,
-                const std::string& nienKhoa,
+                std::string maMH,
+                std::string nienKhoa,
                 int hocKy,
                 int nhom,
                 int soSVMin,
@@ -486,18 +396,15 @@ PYBIND11_MODULE(_credit_backend, module) {
         .def_readonly("huy_lop", &Loptinchi::HUYLOP)
         .def_property_readonly(
             "so_sv_dang_ky",
-            [](const Loptinchi& lopTinChi) {
+            [](Loptinchi lopTinChi) {
                 return DemSoSinhVienDangKy(lopTinChi);
             }
         )
         .def_property_readonly(
             "trang_thai",
-            [](const Loptinchi& lopTinChi) {
+            [](Loptinchi lopTinChi) {
                 if (lopTinChi.HUYLOP) {
                     return std::string(u8"Đã hủy");
-                }
-                if (DemSoSinhVienDangKy(lopTinChi) < lopTinChi.SOSVMIN) {
-                    return std::string(u8"Thiếu sĩ số");
                 }
                 return std::string(u8"Đang mở");
             }
@@ -507,8 +414,8 @@ PYBIND11_MODULE(_credit_backend, module) {
         .def(py::init(&taoLopMacDinh))
         .def(
             py::init([](
-                const std::string& maLop,
-                const std::string& tenLop
+                std::string maLop,
+                std::string tenLop
             ) { return Lop{maLop, tenLop, nullptr}; }),
             py::arg("ma_lop"),
             py::arg("ten_lop")
@@ -517,18 +424,18 @@ PYBIND11_MODULE(_credit_backend, module) {
         .def_readwrite("ten_lop", &Lop::TENLOP)
         .def_property_readonly(
             "so_sinh_vien",
-            [](const Lop& lop) { return DemSinhVien(lop.dssv); }
+            [](Lop lop) { return lop.soSinhVien; }
         );
 
     py::class_<Sinhvien>(module, "SinhVien")
         .def(py::init(&taoSinhVienMacDinh))
         .def(
             py::init([](
-                const std::string& maSV,
-                const std::string& ho,
-                const std::string& ten,
-                const std::string& phai,
-                const std::string& soDT
+                std::string maSV,
+                std::string ho,
+                std::string ten,
+                std::string phai,
+                std::string soDT
             ) { return Sinhvien{maSV, ho, ten, phai, soDT}; }),
             py::arg("ma_sv"),
             py::arg("ho"),
@@ -543,7 +450,7 @@ PYBIND11_MODULE(_credit_backend, module) {
         .def_readwrite("so_dt", &Sinhvien::SODT)
         .def_property_readonly(
             "ho_ten",
-            [](const Sinhvien& sinhVien) {
+            [](Sinhvien sinhVien) {
                 return sinhVien.HO + " " + sinhVien.TEN;
             }
         );
@@ -631,7 +538,7 @@ PYBIND11_MODULE(_credit_backend, module) {
         )
         .def(
             "lay_danh_sach_sinh_vien",
-            &layDanhSachSinhVien,
+            [](LopSinhVienManager& m, string ma) { return layDanhSachSinhVien(m, ma); },
             py::arg("ma_lop")
         )
         .def(
@@ -639,6 +546,13 @@ PYBIND11_MODULE(_credit_backend, module) {
             &LopSinhVienManager::tongSoSinhVienTrongLop,
             py::arg("ma_lop")
         )
+        .def("giai_phong_thu_tu_sinh_vien", &LopSinhVienManager::giaiPhongThuTuSinhVien)
+        .def("lay_sinh_vien_ma_tang", [](LopSinhVienManager& m, string ma) {
+            return laySinhVienTheoMa(m, ma, false);
+        }, py::arg("ma_lop"))
+        .def("lay_sinh_vien_ma_giam", [](LopSinhVienManager& m, string ma) {
+            return laySinhVienTheoMa(m, ma, true);
+        }, py::arg("ma_lop"))
         .def("tong_so_sinh_vien", &LopSinhVienManager::tongSoSinhVien);
 
     py::class_<DangKyManager>(module, "DangKyManager")
@@ -655,27 +569,12 @@ PYBIND11_MODULE(_credit_backend, module) {
             "huy_dang_ky", &huyDangKyLop,
             py::arg("ma_lop_tc"), py::arg("ma_sv")
         )
+        .def("lay_danh_sach_dang_ky", &laySinhVienDangKy, py::arg("ma_lop_tc"))
         .def(
             "da_dang_ky", &DangKyManager::daDangKy,
             py::arg("ma_lop_tc"), py::arg("ma_sv")
         );
 
-    py::class_<DiemManager>(module, "DiemManager")
-        .def(
-            py::init<AppData&>(),
-            py::arg("app_data"),
-            py::keep_alive<1, 2>()
-        )
-        .def(
-            "lay_danh_sach_sinh_vien", &layDanhSachSinhVienNhapDiem,
-            py::arg("nien_khoa"), py::arg("hoc_ky"),
-            py::arg("ma_mh"), py::arg("nhom")
-        )
-        .def(
-            "cap_nhat_danh_sach_diem", &capNhatDanhSachDiem,
-            py::arg("nien_khoa"), py::arg("hoc_ky"),
-            py::arg("ma_mh"), py::arg("nhom"),
-            py::arg("danh_sach_diem")
-        );
+
 
 }

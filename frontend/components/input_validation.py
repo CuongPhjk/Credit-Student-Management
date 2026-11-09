@@ -10,6 +10,14 @@ from PyQt6.QtWidgets import QComboBox, QLabel, QVBoxLayout, QWidget
 ALLOWED_SPECIAL_CHARACTERS = "+-./()&#"
 
 
+def subject_code_error(value):
+    """Trả về lỗi nếu mã môn học chứa ký tự ngoài chữ và số ASCII."""
+    if any(not ("A" <= char <= "Z" or "a" <= char <= "z"
+                or "0" <= char <= "9") for char in value):
+        return "Mã môn học chỉ được chứa chữ cái, chữ số."
+    return None
+
+
 def text_input_error(value, *, allow_digits=True):
     """Trả về mô tả lỗi của chuỗi, hoặc ``None`` nếu chuỗi hợp lệ."""
     if value.startswith(" "):
