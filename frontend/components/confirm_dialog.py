@@ -14,14 +14,21 @@ class ConfirmDialog(QDialog):
         self,
         title="Xác nhận",
         message="Bạn có chắc chắn muốn thực hiện thao tác này?",
-        parent=None
+        parent=None,
+        *,
+        content=None,
+        confirm_text="Xác nhận",
+        cancel_text="Hủy",
     ):
         super().__init__(parent)
 
         self.setWindowTitle(title)
         self.setModal(True)
 
-        self.setFixedSize(420, 210)
+        if content is None:
+            self.setFixedSize(420, 210)
+        else:
+            self.resize(680, 440)
 
         self.setObjectName("confirmDialog")
         self.setStyleSheet("""
@@ -75,9 +82,9 @@ class ConfirmDialog(QDialog):
             }
         """)
 
-        self.init_ui(message)
+        self.init_ui(message, content, confirm_text, cancel_text)
 
-    def init_ui(self, message):
+    def init_ui(self, message, content, confirm_text, cancel_text):
         layout = QVBoxLayout(self)
 
         layout.setContentsMargins(
@@ -105,11 +112,11 @@ class ConfirmDialog(QDialog):
 
         buttons = QHBoxLayout()
 
-        cancel_button = QPushButton("Hủy")
+        cancel_button = QPushButton(cancel_text)
         cancel_button.setObjectName("cancelButton")
         cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        confirm_button = QPushButton("Xác nhận")
+        confirm_button = QPushButton(confirm_text)
         confirm_button.setObjectName("confirmButton")
         confirm_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -127,7 +134,10 @@ class ConfirmDialog(QDialog):
 
         layout.addWidget(icon)
         layout.addWidget(message_label)
-        layout.addStretch()
+        if content is None:
+            layout.addStretch()
+        else:
+            layout.addWidget(content, 1)
         layout.addLayout(buttons)
 
     @staticmethod

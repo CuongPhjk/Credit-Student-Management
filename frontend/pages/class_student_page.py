@@ -773,6 +773,10 @@ class ClassStudentPage(SubjectPage):
             self.range_label.setText("Hiển thị 0 lớp")
         self._render_pagination(page_count)
 
+    def go_to_page(self, page):
+        self.current_page = page
+        self.apply_filters(reset_page=False)
+
     def open_student_list(self, class_code):
         self.editor_host.close_panel(immediate=True)
         class_item = self.manager.tim_lop(class_code)

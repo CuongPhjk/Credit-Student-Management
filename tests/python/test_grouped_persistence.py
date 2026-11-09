@@ -57,6 +57,49 @@ class GroupedPersistenceTest(unittest.TestCase):
         self.assertEqual({p.name for p in self.root.iterdir()},
                          {'monhoc.txt', 'lopsinhvien.txt', 'loptinchi.txt'})
 
+    def test_cancel_underfilled_classes_validates_preview_and_rolls_back_on_write_error(self):
+        next_year = f'{date.today().year + 1}-{date.today().year + 2}'
+        self.credit_file.write_text(
+            f'1|MH1|{YEAR}|1|1|1|50|0\nSV1|0|0\n#\n'
+            f'2|MH2|{YEAR}|1|1|1|50|0\n#\n'
+            f'3|MH1|{YEAR}|1|2|2|50|0\nSV2|0|0\nSV1|-1|1\n#\n'
+            f'4|MH1|{YEAR}|2|1|2|50|0\n#\n'
+            f'5|MH1|{next_year}|1|1|2|50|0\n#\n'
+            f'6|MH2|{YEAR}|1|2|2|50|1\n#\n',
+            encoding='utf-8',
+        )
+        self.credits.doc_danh_sach_lop_tin_chi(str(self.credit_file))
+        original = self.credit_file.read_bytes()
+        preview = self.credits.lay_lop_thieu_si_so(YEAR, 1)
+        self.assertEqual(preview, [(2, 'MH2', 1, 0, 1), (3, 'MH1', 2, 1, 2)])
+        self.assertEqual(self.credit_file.read_bytes(), original)
+        self.assertFalse(self.credits.tim_lop_tin_chi(3).huy_lop)
+
+        self.registrations.dang_ky(2, 'SV2')
+        self.credits.them_lop_tin_chi(LopTinChi('MH2', YEAR, 1, 3, 2, 50))
+        before = self.credit_file.read_bytes()
+        with self.assertRaisesRegex(ValueError, 'đã thay đổi'):
+            self.credits.huy_lop_thieu_si_so(YEAR, 1, [2, 3])
+        self.assertEqual(self.credit_file.read_bytes(), before)
+
+        blocker = Path(str(self.credit_file) + '.tmp')
+        blocker.mkdir()
+        with self.assertRaises(ValueError):
+            self.credits.huy_lop_thieu_si_so(YEAR, 1, [3, 7])
+        self.assertEqual(self.credit_file.read_bytes(), before)
+        self.assertFalse(self.credits.tim_lop_tin_chi(3).huy_lop)
+        self.assertFalse(self.credits.tim_lop_tin_chi(7).huy_lop)
+        blocker.rmdir()
+
+        self.credits.huy_lop_thieu_si_so(YEAR, 1, [3, 7])
+        self.credits.doc_danh_sach_lop_tin_chi(str(self.credit_file))
+        cancelled = [row.ma_lop_tc for row in self.credits.lay_danh_sach_lop_tin_chi() if row.huy_lop]
+        self.assertEqual(cancelled, [3, 6, 7])
+        registrations = self.registrations.lay_danh_sach_dang_ky(3)
+        self.assertEqual([(row['ma_sv'], row['da_huy']) for row in registrations],
+                         [('SV2', False), ('SV1', True)])
+        self.assertEqual(self.credits.lay_lop_thieu_si_so(YEAR, 1), [])
+
     def test_student_and_class_crud_rewrites_only_the_combined_student_file(self):
         before = self.snapshot()
         self.students.them_sinh_vien('L2', SinhVien('SV3', 'Lê', 'Cường', 'Nam', '0923456789'))

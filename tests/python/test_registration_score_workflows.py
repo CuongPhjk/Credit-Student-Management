@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import QApplication, QLabel
 from bridge import AppData, MonHocManager, LopSinhVienManager, LopTinChiManager, DangKyManager, LopTinChi
 from frontend.pages.credit_class_page import CreditClassPage
 from frontend.pages.class_student_page import ClassStudentPage
-from frontend.pages.registration_page import AvailableClassTable
+from frontend.pages.registration_page import AvailableClassTable, RegistrationPage
 
 YEAR = f"{date.today().year}-{date.today().year + 1}"
 
@@ -71,6 +71,39 @@ class RegistrationWorkflowTest(unittest.TestCase):
         page.show()
         self.app.processEvents()
         page.grab().save("build/registration-students-updated.png")
+
+    def test_cancelled_class_is_excluded_from_active_list_but_keeps_history(self):
+        registration_page = RegistrationPage(
+            self.registrations, self.students, self.credits, self.subjects
+        )
+        class_page = CreditClassPage(self.credits, subject_manager=self.subjects)
+        class_page.registration_manager = self.registrations
+        self.pages.extend([registration_page, class_page])
+
+        registration_page.student_input.setText("SV1")
+        registration_page.find_student()
+        self.assertEqual(registration_page.registered_table.rowCount(), 2)
+        self.credits.cap_nhat_lop_tin_chi(1, LopTinChi("MH1", YEAR, 1, 1, 2, 3))
+        self.credits.huy_lop_thieu_si_so(YEAR, 1, [1, 2])
+
+        registration_page.refresh()
+        self.assertFalse(self.registrations.da_dang_ky(1, "SV1"))
+        self.assertEqual(registration_page.registered_table.columnCount(), 3)
+        self.assertEqual(registration_page.registered_table.rowCount(), 1)
+        self.assertEqual(registration_page.registered_table.item(0, 0).text(), "MH2")
+        self.assertEqual(registration_page.registered_count_label.text(), "1 lớp đăng ký còn hiệu lực")
+
+        class_page.open_registrations(1)
+        self.assertEqual(class_page.registration_table.rowCount(), 2)
+        self.assertEqual(class_page.registration_table.item(0, 2).text(), "Lớp đã hủy")
+        self.assertEqual(class_page.registration_table.item(1, 2).text(), "Đã hủy")
+        self.assertFalse(self.registrations.lay_danh_sach_dang_ky(1)[0]["da_huy"])
+        class_page.registration_search_input.setText("SV1")
+        class_page.registration_search_button.click()
+        self.assertEqual(class_page.registration_table.rowCount(), 1)
+        self.assertEqual(class_page.registration_table.item(0, 2).text(), "Lớp đã hủy")
+        class_page.open_registrations(3)
+        self.assertEqual(class_page.registration_table.item(0, 2).text(), "Đang đăng ký")
 
     def test_registration_search_only_applies_on_button_click(self):
         page = CreditClassPage(self.credits, subject_manager=self.subjects)

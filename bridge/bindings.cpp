@@ -1,6 +1,7 @@
 #include <string>
 
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 #include "../backend/src/KhaiBao.h"
 
@@ -86,6 +87,24 @@ py::list layMonHocTheoTen(MonHocManager& manager, bool giamDan) {
         ketQua.append(py::cast(danhSach[viTri]->mh, py::return_value_policy::copy));
     }
     return ketQua;
+}
+
+py::list layLopThieuSiSo(LopTinChiManager& manager, string nienKhoa, int hocKy) {
+    py::list ketQua;
+    for (auto& muc : manager.layLopThieuSiSo(nienKhoa, hocKy)) {
+        Loptinchi& lop = *muc.lop;
+        ketQua.append(py::make_tuple(lop.MALOPTC, lop.MAMH, lop.NHOM, muc.soDangKy, lop.SOSVMIN));
+    }
+    return ketQua;
+}
+
+void huyLopThieuSiSo(
+    LopTinChiManager& manager, string nienKhoa, int hocKy, std::vector<int> maDaXacNhan
+) {
+    string loi;
+    if (!manager.huyLopThieuSiSo(nienKhoa, hocKy, maDaXacNhan, loi)) {
+        throw py::value_error(loi);
+    }
 }
 
 Loptinchi taoLopTinChiMacDinh() {
@@ -516,6 +535,10 @@ PYBIND11_MODULE(_credit_backend, module) {
         )
         .def("tim_lop_tin_chi", &timLopTinChi, py::arg("ma_lop_tc"))
         .def("lay_danh_sach_lop_tin_chi", &layDanhSachLopTinChi)
+        .def("lay_lop_thieu_si_so", &layLopThieuSiSo,
+             py::arg("nien_khoa"), py::arg("hoc_ky"))
+        .def("huy_lop_thieu_si_so", &huyLopThieuSiSo,
+             py::arg("nien_khoa"), py::arg("hoc_ky"), py::arg("ma_da_xac_nhan"))
         .def("tong_so_lop_tin_chi", &LopTinChiManager::tongSoLopTinChi);
 
     py::class_<LopSinhVienManager>(module, "LopSinhVienManager")

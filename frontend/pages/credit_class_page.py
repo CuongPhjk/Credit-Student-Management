@@ -7,6 +7,7 @@ from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QComboBox,
+    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QFrame,
@@ -377,6 +378,7 @@ class CreditClassTable(QTableWidget):
             "Đang mở": ("#dcfce7", "#15803d", "#86efac"),
             "Đang đăng ký": ("#dcfce7", "#15803d", "#86efac"),
             "Đã hủy": ("#fee2e2", "#dc2626", "#fca5a5"),
+            "Lớp đã hủy": ("#fee2e2", "#dc2626", "#fca5a5"),
         }
         background, foreground, border = colors[status]
         container = QWidget()
@@ -518,41 +520,32 @@ class CreditClassPage(SubjectPage):
         self.search_input.setProperty("invalid", False)
         self.search_input.setPlaceholderText("Tìm mã lớp, mã hoặc tên môn...")
         self.search_input.setClearButtonEnabled(True)
-        self.search_input.returnPressed.connect(self.submit_search)
         self.search_input.textChanged.connect(self._on_search_text_changed)
         search_field = self._field("Tìm kiếm", self.search_input)
-        search_field.setMinimumWidth(180)
+        search_field.setMinimumWidth(170)
         layout.addWidget(search_field, 2)
-        self.year_filter = QComboBox()
-        self.year_filter.addItem("Tất cả", None)
-        self.year_filter.currentIndexChanged.connect(self.apply_filters)
-        layout.addWidget(self._field("Niên khóa", self.year_filter), 1)
-        self.group_filter = QComboBox()
-        self.group_filter.addItem("Tất cả", None)
-        self.group_filter.currentIndexChanged.connect(self.apply_filters)
-        layout.addWidget(self._field("Nhóm", self.group_filter), 1)
-        self.semester_filter = QComboBox()
-        self.semester_filter.addItem("Tất cả", None)
-        for semester in range(1, 4):
-            self.semester_filter.addItem(str(semester), semester)
-        self.semester_filter.currentIndexChanged.connect(self.apply_filters)
-        layout.addWidget(self._field("Học kỳ", self.semester_filter), 1)
         search_button = QPushButton("Tìm kiếm")
         search_button.setObjectName("primaryButton")
         search_button.setIcon(QIcon(svg_pixmap("search.svg", "#ffffff", 20)))
         search_button.setIconSize(QSize(20, 20))
         search_button.clicked.connect(self.submit_search)
         layout.addWidget(search_button, 0, Qt.AlignmentFlag.AlignBottom)
-        divider = QFrame()
-        divider.setFixedSize(1, 42)
-        divider.setStyleSheet("background: #d8e2ef; border: none;")
-        layout.addWidget(divider)
-        add_button = QPushButton("Mở lớp tín chỉ")
-        add_button.setObjectName("primaryButton")
-        add_button.setIcon(QIcon(svg_pixmap("plus.svg", "#ffffff", 21)))
-        add_button.setIconSize(QSize(21, 21))
-        add_button.clicked.connect(self.add_credit_class)
-        layout.addWidget(add_button, 0, Qt.AlignmentFlag.AlignBottom)
+        self.year_filter = QComboBox()
+        self.year_filter.addItem("Tất cả", None)
+        layout.addWidget(self._field("Niên khóa", self.year_filter), 1)
+        self.group_filter = QComboBox()
+        self.group_filter.addItem("Tất cả", None)
+        layout.addWidget(self._field("Nhóm", self.group_filter), 1)
+        self.semester_filter = QComboBox()
+        self.semester_filter.addItem("Tất cả", None)
+        for semester in range(1, 4):
+            self.semester_filter.addItem(str(semester), semester)
+        layout.addWidget(self._field("Học kỳ", self.semester_filter), 1)
+        self._filter_boxes = (self.year_filter, self.group_filter, self.semester_filter)
+        self.filter_button = QPushButton("Lọc")
+        self.filter_button.setObjectName("primaryButton")
+        self.filter_button.clicked.connect(self.submit_filters)
+        layout.addWidget(self.filter_button, 0, Qt.AlignmentFlag.AlignBottom)
         return card
 
     def _build_table_card(self):
@@ -563,7 +556,20 @@ class CreditClassPage(SubjectPage):
         layout.setSpacing(10)
         heading = QLabel("Danh sách lớp tín chỉ")
         heading.setObjectName("sectionTitle")
-        layout.addWidget(heading)
+        heading_row = QHBoxLayout()
+        heading_row.addWidget(heading)
+        heading_row.addStretch()
+        cancel_underfilled = QPushButton("Hủy lớp thiếu sĩ số")
+        cancel_underfilled.setObjectName("secondaryButton")
+        cancel_underfilled.clicked.connect(self.cancel_underfilled_classes)
+        heading_row.addWidget(cancel_underfilled)
+        add_button = QPushButton("Mở lớp tín chỉ")
+        add_button.setObjectName("primaryButton")
+        add_button.setIcon(QIcon(svg_pixmap("plus.svg", "#ffffff", 21)))
+        add_button.setIconSize(QSize(21, 21))
+        add_button.clicked.connect(self.add_credit_class)
+        heading_row.addWidget(add_button)
+        layout.addLayout(heading_row)
         self.table = CreditClassTable()
         self.table.open_requested.connect(self.open_registrations)
         self.table.edit_requested.connect(self.edit_credit_class)
@@ -625,6 +631,7 @@ class CreditClassPage(SubjectPage):
         search_row.addWidget(self.registration_search_button)
         layout.addLayout(search_row)
         self._registration_students = []
+        self._registration_class_cancelled = False
         self.registration_table = RegistrationStudentTable()
         self.registration_table.setHorizontalHeaderLabels(
             ["Mã sinh viên", "Họ tên", "Trạng thái"]
@@ -648,17 +655,17 @@ class CreditClassPage(SubjectPage):
     def open_registrations(self, class_id):
         try:
             students = self.registration_manager.lay_danh_sach_dang_ky(class_id)
+            credit_class = self.manager.tim_lop_tin_chi(class_id) if self.manager else None
         except (AttributeError, RuntimeError, ValueError) as error:
             self.credit_class_delete_notice.set_message(str(error), NotificationType.ERROR)
             self.credit_class_delete_notice_timer.start(3000)
             return
-        credit_class = next((item for item in self._all_credit_classes()
-                             if item.ma_lop_tc == class_id), None)
         caption = f"Lớp tín chỉ {class_id}"
         if credit_class is not None:
             caption += (f" • {credit_class.ma_mh} • {credit_class.nien_khoa}"
                         f" • Học kỳ {credit_class.hoc_ky} • Nhóm {credit_class.nhom}")
         self.registration_heading.setText(caption)
+        self._registration_class_cancelled = credit_class is not None and credit_class.huy_lop
         self._registration_students = students
         self.registration_search_input.clear()
         self._render_registrations(students)
@@ -675,8 +682,13 @@ class CreditClassPage(SubjectPage):
         self.registration_table.setRowCount(0)
         self.registration_table.setRowCount(len(students))
         for row, student in enumerate(students):
-            values = [student["ma_sv"], student["ho_ten"],
-                      "Đã hủy" if student["da_huy"] else "Đang đăng ký"]
+            if student["da_huy"]:
+                status = "Đã hủy"
+            elif self._registration_class_cancelled:
+                status = "Lớp đã hủy"
+            else:
+                status = "Đang đăng ký"
+            values = [student["ma_sv"], student["ho_ten"], status]
             for col, value in enumerate(values):
                 item = QTableWidgetItem(value)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter |
@@ -743,9 +755,7 @@ class CreditClassPage(SubjectPage):
         if reset_page:
             self.current_page = 1
         text = self._submitted_search_text
-        year = self.year_filter.currentData()
-        group = self.group_filter.currentData()
-        semester = self.semester_filter.currentData()
+        year, group, semester = self._submitted_filters or (None, None, None)
         self.filtered_credit_classes = [
             item for item in getattr(self, "_source_credit_classes", [])
             if (
@@ -758,6 +768,9 @@ class CreditClassPage(SubjectPage):
             and (semester is None or item.hoc_ky == semester)
             and (group is None or item.nhom == group)
         ]
+        self._render_filtered_page()
+
+    def _render_filtered_page(self):
         page_count = max(
             1, math.ceil(len(self.filtered_credit_classes) / self.PAGE_SIZE)
         )
@@ -827,6 +840,57 @@ class CreditClassPage(SubjectPage):
             return False
 
         self.editor_host.open_form(dialog, on_save=save)
+
+    def cancel_underfilled_classes(self):
+        year = self.year_filter.currentData()
+        semester = self.semester_filter.currentData()
+        notice = self.credit_class_delete_notice
+        timer = self.credit_class_delete_notice_timer
+        if year is None or semester is None:
+            notice.set_message("Chọn một niên khóa và một học kỳ để hủy lớp.", NotificationType.WARNING)
+            timer.start(3000)
+            return
+        try:
+            rows = self.manager.lay_lop_thieu_si_so(year, semester)
+            if not rows:
+                notice.set_message("Không có lớp thiếu sĩ số trong học kỳ đã chọn.", NotificationType.INFO)
+                timer.start(3000)
+                return
+            if not self.confirm_underfilled_classes(year, semester, rows):
+                return
+            self.manager.huy_lop_thieu_si_so(year, semester, [row[0] for row in rows])
+        except (AttributeError, RuntimeError, ValueError) as error:
+            notice.set_message(str(error), NotificationType.ERROR)
+            timer.start(3000)
+            return
+        self.refresh()
+        notice.set_message(f"Đã hủy {len(rows)} lớp tín chỉ thiếu sĩ số.", NotificationType.SUCCESS)
+        timer.start(3000)
+
+    def confirm_underfilled_classes(self, year, semester, rows):
+        table = QTableWidget(len(rows), 5)
+        table.setHorizontalHeaderLabels(["Mã lớp", "Môn học", "Nhóm", "Đã đăng ký", "Tối thiểu"])
+        table.verticalHeader().hide()
+        table.setAlternatingRowColors(True)
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        for index, (class_id, subject_code, group, registered, minimum) in enumerate(rows):
+            name = self.subject_names.get(subject_code)
+            subject = f"{subject_code} – {name}" if name else subject_code
+            for column, value in enumerate((class_id, subject, group, registered, minimum)):
+                table.setItem(index, column, QTableWidgetItem(str(value)))
+
+        dialog = ConfirmDialog(
+            "Hủy lớp tín chỉ thiếu sĩ số",
+            f"Niên khóa {year}, học kỳ {semester} có {len(rows)} lớp thiếu sĩ số.",
+            self,
+            content=table,
+            confirm_text=f"Hủy {len(rows)} lớp",
+            cancel_text="Quay lại",
+        )
+        return dialog.exec() == QDialog.DialogCode.Accepted
 
     def delete_credit_class(self, class_id):
         if not ConfirmDialog.ask(

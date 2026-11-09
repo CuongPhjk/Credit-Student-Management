@@ -4,6 +4,7 @@
 #include <string>
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 using namespace std;
 
@@ -364,6 +365,16 @@ private:
 class LopTinChiManager {
 public:
     explicit LopTinChiManager(AppData& appData);
+
+    struct LopThieuSiSo {
+        Loptinchi* lop;
+        int soDangKy;
+    };
+
+    std::vector<LopThieuSiSo> layLopThieuSiSo(string nienKhoa, int hocKy);
+    bool huyLopThieuSiSo(
+        string nienKhoa, int hocKy, const std::vector<int>& maDaXacNhan, string& loi
+    );
 
     bool docDanhSachLopTinChi(std::string tenFile, std::string& loi);
     bool themLopTinChi(Loptinchi lopTinChi, std::string& loi);

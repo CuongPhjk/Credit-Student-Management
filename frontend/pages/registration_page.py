@@ -123,7 +123,7 @@ class RegisteredClassTable(QTableWidget):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
         for column, width in {0: 75, 2: 52}.items():
             self.setColumnWidth(column, width)
-        self.empty_label = QLabel("Sinh viên chưa đăng ký lớp nào", self.viewport())
+        self.empty_label = QLabel("Không có lớp đăng ký còn hiệu lực", self.viewport())
         self.empty_label.setObjectName("subjectEmptyLabel")
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -319,14 +319,14 @@ class RegistrationPage(SubjectPage):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(6)
-        heading = QLabel("Các lớp đã đăng ký trong học kỳ")
+        heading = QLabel("Các lớp đăng ký còn hiệu lực")
         heading.setObjectName("sectionTitle")
         heading.setWordWrap(True)
         layout.addWidget(heading)
         self.registered_table = RegisteredClassTable()
         layout.addWidget(self.registered_table, 1)
         footer = QHBoxLayout()
-        self.registered_count_label = QLabel("0 lớp đã đăng ký")
+        self.registered_count_label = QLabel("0 lớp đăng ký còn hiệu lực")
         self.registered_count_label.setObjectName("rangeLabel")
         footer.addWidget(self.registered_count_label)
         footer.addStretch()
@@ -480,7 +480,7 @@ class RegistrationPage(SubjectPage):
             self.available_table.set_classes([], {})
             self.registered_table.set_classes([], {})
             self.available_count_label.setText("Hiển thị 0 lớp đang mở")
-            self.registered_count_label.setText("0 lớp đã đăng ký")
+            self.registered_count_label.setText("0 lớp đăng ký còn hiệu lực")
             self._show_page_notice("Không tìm thấy sinh viên")
             return
         self.current_student = info["sinh_vien"]
@@ -518,15 +518,14 @@ class RegistrationPage(SubjectPage):
             return
         year = self.year_input.currentData()
         semester = self.semester_input.currentData()
-        all_classes = [
+        open_classes = [
             item for item in self.credit_class_manager.lay_danh_sach_lop_tin_chi()
-            if item.nien_khoa == year and item.hoc_ky == semester
+            if item.nien_khoa == year and item.hoc_ky == semester and not item.huy_lop
         ]
         registered = [
-            item for item in all_classes
+            item for item in open_classes
             if self.manager.da_dang_ky(item.ma_lop_tc, self.current_student.ma_sv)
         ]
-        open_classes = [item for item in all_classes if not item.huy_lop]
         subject_names = self._subject_names()
         self.available_table.set_classes(
             open_classes, subject_names,
@@ -536,7 +535,7 @@ class RegistrationPage(SubjectPage):
             f"Hiển thị {len(open_classes)} lớp đang mở"
         )
         self.registered_count_label.setText(
-            f"{len(registered)} lớp đã đăng ký"
+            f"{len(registered)} lớp đăng ký còn hiệu lực"
         )
         self.selected_credit_class_id = None
 

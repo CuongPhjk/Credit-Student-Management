@@ -307,6 +307,8 @@ class SubjectPage(QWidget):
         self.current_page = 1
         self.filtered_subjects = []
         self._submitted_search_text = ""
+        self._filter_boxes = ()
+        self._submitted_filters = ()
         self._search_error_timer = QTimer(self)
         self._search_error_timer.setSingleShot(True)
         self._search_error_timer.timeout.connect(lambda: self._set_search_invalid(False))
@@ -416,26 +418,29 @@ class SubjectPage(QWidget):
         self.search_input.setProperty("invalid", False)
         self.search_input.setPlaceholderText("Tìm theo mã hoặc tên môn học...")
         self.search_input.setClearButtonEnabled(True)
-        self.search_input.returnPressed.connect(self.submit_search)
         self.search_input.textChanged.connect(self._on_search_text_changed)
         search_field = self._field("Tìm kiếm", self.search_input)
-        search_field.setMinimumWidth(280)
+        search_field.setMinimumWidth(170)
         layout.addWidget(search_field, 2)
-        self.theory_filter = QComboBox()
-        self.practice_filter = QComboBox()
-        for combo in (self.theory_filter, self.practice_filter):
-            combo.addItem("Tất cả", None)
-            for value in range(0, 11):
-                combo.addItem(str(value), value)
-            combo.currentIndexChanged.connect(self.apply_filters)
-        layout.addWidget(self._field("Tín chỉ LT", self.theory_filter), 1)
-        layout.addWidget(self._field("Tín chỉ TH", self.practice_filter), 1)
         search_button = QPushButton("Tìm kiếm")
         search_button.setObjectName("primaryButton")
         search_button.setIcon(QIcon(svg_pixmap("search.svg", "#ffffff", 20)))
         search_button.setIconSize(QSize(20, 20))
         search_button.clicked.connect(self.submit_search)
         layout.addWidget(search_button, 0, Qt.AlignmentFlag.AlignBottom)
+        self.theory_filter = QComboBox()
+        self.practice_filter = QComboBox()
+        for combo in (self.theory_filter, self.practice_filter):
+            combo.addItem("Tất cả", None)
+            for value in range(0, 11):
+                combo.addItem(str(value), value)
+        layout.addWidget(self._field("Tín chỉ LT", self.theory_filter), 1)
+        layout.addWidget(self._field("Tín chỉ TH", self.practice_filter), 1)
+        self._filter_boxes = (self.theory_filter, self.practice_filter)
+        self.filter_button = QPushButton("Lọc")
+        self.filter_button.setObjectName("primaryButton")
+        self.filter_button.clicked.connect(self.submit_filters)
+        layout.addWidget(self.filter_button, 0, Qt.AlignmentFlag.AlignBottom)
         divider = QFrame()
         divider.setFixedSize(1, 42)
         divider.setStyleSheet("background: #d8e2ef; border: none;")
@@ -590,7 +595,7 @@ class SubjectPage(QWidget):
     def _on_search_text_changed(self, _text):
         if self.search_input.property("invalid"):
             self._set_search_invalid(False)
-        if not _text and self._submitted_search_text:
+        if not self._filter_boxes and not _text and self._submitted_search_text:
             self._submitted_search_text = ""
             self.apply_filters()
 
@@ -601,20 +606,29 @@ class SubjectPage(QWidget):
             return
         self._set_search_invalid(False)
         self._submitted_search_text = self.search_input.text().strip().casefold()
+        self._submitted_filters = ()
+        self.apply_filters()
+
+    def submit_filters(self):
+        self._set_search_invalid(False)
+        self._submitted_search_text = self.search_input.text().strip().casefold()
+        self._submitted_filters = tuple(box.currentData() for box in self._filter_boxes)
         self.apply_filters()
 
     def apply_filters(self, *_args, reset_page=True):
         if reset_page:
             self.current_page = 1
         text = self._submitted_search_text
-        theory = self.theory_filter.currentData()
-        practice = self.practice_filter.currentData()
+        theory, practice = self._submitted_filters or (None, None)
         self.filtered_subjects = [
             subject for subject in getattr(self, "_source_subjects", [])
             if (not text or text in subject.ma_mh.casefold() or text in subject.ten_mh.casefold())
             and (theory is None or subject.stc_lt == theory)
             and (practice is None or subject.stc_th == practice)
         ]
+        self._render_filtered_page()
+
+    def _render_filtered_page(self):
         page_count = max(1, math.ceil(len(self.filtered_subjects) / self.PAGE_SIZE))
         self.current_page = min(self.current_page, page_count)
         start = (self.current_page - 1) * self.PAGE_SIZE
@@ -653,7 +667,7 @@ class SubjectPage(QWidget):
 
     def go_to_page(self, page):
         self.current_page = page
-        self.apply_filters(reset_page=False)
+        self._render_filtered_page()
 
     def _new_subject(self, values):
         if self.subject_type is None:

@@ -100,6 +100,34 @@ class EditorWorkflowTest(unittest.TestCase):
         QTest.qWait(1200)
         self.assertIsNone(page.editor_host.form)
 
+    def test_subject_search_and_filter_apply_only_on_button_click(self):
+        self.subjects.them_mon_hoc(MonHoc('MH2', 'Mon hai', 2, 0))
+        self.subjects.them_mon_hoc(MonHoc('MH3', 'Lop trinh', 2, 0))
+        page = self.show_page(SubjectPage(self.subjects, MonHoc))
+
+        def codes():
+            return [subject.ma_mh for subject in page.filtered_subjects]
+
+        page.theory_filter.setCurrentIndex(page.theory_filter.findData(2))
+        page.search_input.setText('Mon')
+        QTest.keyClick(page.search_input, Qt.Key.Key_Return)
+        self.assertEqual(codes(), ['MH1', 'MH2', 'MH3'])
+        page.submit_search()
+        self.assertEqual(codes(), ['MH1', 'MH2'])
+        page.filter_button.click()
+        self.assertEqual(codes(), ['MH2'])
+        page.search_input.clear()
+        self.assertEqual(codes(), ['MH2'])
+        page.filter_button.click()
+        self.assertEqual(codes(), ['MH2', 'MH3'])
+
+        page.PAGE_SIZE = 1
+        with patch.object(page, 'apply_filters') as recompute:
+            page.go_to_page(2)
+        recompute.assert_not_called()
+        self.assertEqual(page.table.rowCount(), 1)
+        self.assertEqual(page.table.item(0, 1).text(), 'MH3')
+
     def test_class_and_student_add_edit(self):
         page = self.show_page(ClassStudentPage(self.students, Lop, SinhVien))
         page.add_class()
@@ -148,12 +176,22 @@ class EditorWorkflowTest(unittest.TestCase):
         page.semester_filter.setCurrentIndex(page.semester_filter.findData(1))
         page.search_input.setText('Mon mot')
         page.submit_search()
+        self.assertEqual(page.table.rowCount(), 2)
+        page.filter_button.click()
         self.assertEqual(page.table.rowCount(), 1)
         self.assertEqual(page.table.item(0, 2).text(), 'Mon mot')
         page.semester_filter.setCurrentIndex(page.semester_filter.findData(2))
-        self.assertEqual(page.table.rowCount(), 0)
+        self.assertEqual(page.table.rowCount(), 1)
         page.refresh()
         self.assertEqual(page.group_filter.currentData(), 2)
+        self.assertEqual(page.table.rowCount(), 1)
+        page.filter_button.click()
+        self.assertEqual(page.table.rowCount(), 0)
+        page.search_input.clear()
+        page.group_filter.setCurrentIndex(0)
+        self.assertEqual(page.table.rowCount(), 0)
+        page.filter_button.click()
+        self.assertEqual(page.table.rowCount(), 1)
 
     def test_failed_edit_keeps_form_and_values(self):
         page = self.show_page(SubjectPage(self.subjects, MonHoc))

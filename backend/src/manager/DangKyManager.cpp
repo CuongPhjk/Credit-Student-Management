@@ -87,7 +87,7 @@ bool DangKyManager::daDangKy(
     Loptinchi* lop = TimLopTinChiTheoMa(
         appData_.dsLopTinChi, maLopTC
     );
-    return lop != nullptr && SinhVienDangKyLopTinChi(*lop, maSV);
+    return lop != nullptr && !lop->HUYLOP && SinhVienDangKyLopTinChi(*lop, maSV);
 }
 
 PTRDK* DangKyManager::layDanhSach(int maLopTC, int& soLuong, string& loi) {

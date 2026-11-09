@@ -131,3 +131,48 @@ Loptinchi** LopTinChiManager::layDanhSachLopTinChi(int& soLuong) {
 int LopTinChiManager::tongSoLopTinChi() {
     return appData_.dsLopTinChi.n;
 }
+
+std::vector<LopTinChiManager::LopThieuSiSo> LopTinChiManager::layLopThieuSiSo(
+    string nienKhoa, int hocKy
+) {
+    std::vector<LopThieuSiSo> ketQua;
+    DS_LTC& danhSach = appData_.dsLopTinChi;
+    nienKhoa = XoaKhoangTrangDauCuoi(nienKhoa);
+    for (int i = 0; i < danhSach.n; ++i) {
+        Loptinchi* lop = danhSach.nodes[i];
+        if (lop->HUYLOP || lop->NIENKHOA != nienKhoa || lop->HOCKY != hocKy) {
+            continue;
+        }
+        int soDangKy = DemSoSinhVienDangKy(*lop);
+        if (soDangKy < lop->SOSVMIN) {
+            ketQua.push_back({lop, soDangKy});
+        }
+    }
+    return ketQua;
+}
+
+bool LopTinChiManager::huyLopThieuSiSo(
+    string nienKhoa, int hocKy, const std::vector<int>& maDaXacNhan, string& loi
+) {
+    loi.clear();
+    if (maDaXacNhan.empty()) {
+        loi = "Không có lớp tín chỉ nào được xác nhận hủy.";
+        return false;
+    }
+    auto danhSach = layLopThieuSiSo(nienKhoa, hocKy);
+    if (danhSach.size() == maDaXacNhan.size()) {
+        size_t i = 0;
+        while (i < danhSach.size() && danhSach[i].lop->MALOPTC == maDaXacNhan[i]) {
+            ++i;
+        }
+        if (i == danhSach.size()) {
+            for (auto& muc : danhSach) muc.lop->HUYLOP = true;
+            if (luu(loi)) return true;
+
+            for (auto& muc : danhSach) muc.lop->HUYLOP = false;
+            return false;
+        }
+    }
+    loi = "Danh sách lớp thiếu sĩ số đã thay đổi. Vui lòng xem lại trước khi hủy.";
+    return false;
+}
