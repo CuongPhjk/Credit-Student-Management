@@ -233,8 +233,6 @@ void LopSinhVienManager::giaiPhongThuTuSinhVien() {
 
 PTRSV* LopSinhVienManager::laySinhVienTheoMa(string maLop, int& soLuong) {
     string ma = ChuanHoaMa(maLop);
-    // Other managers, direct core calls, file reads and AppData::clear may have
-    // freed old nodes. Check the revision before reading any cached pointer.
     if (maLopDangGiu_ != ma || phienBanDangGiu_ != appData_.dsLop.phienBan) {
         giaiPhongThuTuSinhVien();
         Lop* lop = TimLop(appData_.dsLop, ma);

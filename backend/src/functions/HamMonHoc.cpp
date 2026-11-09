@@ -1,4 +1,5 @@
 #include "../KhaiBao.h"
+#include "../utils/MergeSort.h"
 using namespace std;
 
 Monhoc ChuanHoaMonHoc(Monhoc monHoc) {
@@ -180,4 +181,14 @@ treeMH* LayDanhSachMonHoc(treeMH root, int n, int& soLuong) {
     int viTri = 0;
     ChepMonHocTheoMa(root, ketQua, viTri);
     return ketQua;
+}
+
+bool MonHocDungTruoc(treeMH a, treeMH b) {
+    int ketQua = SoSanhKhongPhanBietHoaThuong(a->mh.TENMH, b->mh.TENMH);
+    if (ketQua != 0) return ketQua < 0;
+    return a->mh.MAMH < b->mh.MAMH;
+}
+
+void SapXepConTroMonHocTheoTen(treeMH danhSach[], int soLuong) {
+    MergeSort(danhSach, soLuong, MonHocDungTruoc);
 }

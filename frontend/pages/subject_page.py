@@ -456,7 +456,17 @@ class SubjectPage(QWidget):
         layout.setSpacing(10)
         heading = QLabel("Danh sách môn học")
         heading.setObjectName("sectionTitle")
-        layout.addWidget(heading)
+        heading_row = QHBoxLayout()
+        heading_row.addWidget(heading)
+        heading_row.addStretch()
+        heading_row.addWidget(QLabel("Thứ tự:"))
+        self.subject_sort = QComboBox()
+        self.subject_sort.addItem("Mã môn A → Z", "code")
+        self.subject_sort.addItem("Tên môn A → Z", "name_asc")
+        self.subject_sort.addItem("Tên môn Z → A", "name_desc")
+        self.subject_sort.currentIndexChanged.connect(self.change_subject_order)
+        heading_row.addWidget(self.subject_sort)
+        layout.addLayout(heading_row)
         self.table = SubjectTable()
         self.table.edit_requested.connect(self.edit_subject)
         self.table.delete_requested.connect(self.delete_subject)
@@ -548,7 +558,14 @@ class SubjectPage(QWidget):
     def _all_subjects(self):
         if self.manager is None:
             return []
-        return list(self.manager.lay_danh_sach_mon_hoc())
+        order = self.subject_sort.currentData()
+        if order == "code":
+            return list(self.manager.lay_danh_sach_mon_hoc())
+        return list(self.manager.lay_mon_hoc_theo_ten(order == "name_desc"))
+
+    def change_subject_order(self, _index):
+        self.current_page = 1
+        self.refresh()
 
     def refresh(self):
         try:

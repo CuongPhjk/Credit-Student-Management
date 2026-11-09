@@ -1,4 +1,5 @@
 #include "../KhaiBao.h"
+#include "../utils/MergeSort.h"
 
 Sinhvien ChuanHoaSinhVien(Sinhvien sinhVien) {
     Sinhvien ketQua = sinhVien;
@@ -193,29 +194,10 @@ PTRSV* LayDanhSachSinhVien(Lop& lop, int& soLuong) {
     return ketQua;
 }
 
-
-static void TronConTroSinhVien(PTRSV ds[], PTRSV tam[], int trai, int giua, int phai) {
-    int i = trai, j = giua + 1, k = trai;
-    while (i <= giua && j <= phai) {
-        if (ds[i]->sv.MASV <= ds[j]->sv.MASV) tam[k++] = ds[i++];
-        else tam[k++] = ds[j++];
-    }
-    while (i <= giua) tam[k++] = ds[i++];
-    while (j <= phai) tam[k++] = ds[j++];
-    for (int viTri = trai; viTri <= phai; ++viTri) ds[viTri] = tam[viTri];
-}
-
-static void MergeSortConTroSinhVien(PTRSV ds[], PTRSV tam[], int trai, int phai) {
-    if (trai >= phai) return;
-    int giua = trai + (phai - trai) / 2;
-    MergeSortConTroSinhVien(ds, tam, trai, giua);
-    MergeSortConTroSinhVien(ds, tam, giua + 1, phai);
-    TronConTroSinhVien(ds, tam, trai, giua, phai);
+bool SinhVienDungTruoc(PTRSV a, PTRSV b) {
+    return a->sv.MASV < b->sv.MASV;
 }
 
 void SapXepConTroSinhVienTheoMa(PTRSV danhSach[], int soLuong) {
-    if (soLuong < 2) return;
-    PTRSV* tam = new PTRSV[soLuong];
-    MergeSortConTroSinhVien(danhSach, tam, 0, soLuong - 1);
-    delete[] tam;
+    MergeSort(danhSach, soLuong, SinhVienDungTruoc);
 }

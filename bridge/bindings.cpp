@@ -76,6 +76,18 @@ py::list layDanhSachMonHoc(MonHocManager& manager) {
     return ketQua;
 }
 
+py::list layMonHocTheoTen(MonHocManager& manager, bool giamDan) {
+    int soLuong;
+    treeMH* danhSach = manager.layMonHocTheoTen(soLuong);
+    py::list ketQua;
+    int viTri = giamDan ? soLuong - 1 : 0;
+    int buoc = giamDan ? -1 : 1;
+    for (int i = 0; i < soLuong; ++i, viTri += buoc) {
+        ketQua.append(py::cast(danhSach[viTri]->mh, py::return_value_policy::copy));
+    }
+    return ketQua;
+}
+
 Loptinchi taoLopTinChiMacDinh() {
     return Loptinchi{0, "", "", 1, 1, 1, 1, false, nullptr};
 }
@@ -480,6 +492,7 @@ PYBIND11_MODULE(_credit_backend, module) {
         )
         .def("tim_mon_hoc", &timMonHoc, py::arg("ma_mh"))
         .def("lay_danh_sach_mon_hoc", &layDanhSachMonHoc)
+        .def("lay_mon_hoc_theo_ten", &layMonHocTheoTen, py::arg("giam_dan") = false)
         .def("tong_so_mon_hoc", &MonHocManager::tongSoMonHoc);
 
     py::class_<LopTinChiManager>(module, "LopTinChiManager")

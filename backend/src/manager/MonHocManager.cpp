@@ -10,6 +10,7 @@ bool MonHocManager::docDanhSachMonHoc(
     std::string tenFile,
     std::string& loi
 ) {
+    boThuTuTheoTen();
     if (!DocDanhSachMonHoc(tenFile, appData_.dsMonHoc, appData_.n, loi)) {
         return false;
     }
@@ -22,6 +23,7 @@ bool MonHocManager::themMonHoc(Monhoc monHoc, std::string& loi) {
     if (!ThemMonHoc(appData_.dsMonHoc, appData_.n, monHoc, loi)) {
         return false;
     }
+    boThuTuTheoTen();
     if (appData_.tenFileMonHoc.empty()
         || GhiDanhSachMonHoc(appData_.tenFileMonHoc, appData_.dsMonHoc, loi)) {
         return true;
@@ -61,6 +63,9 @@ bool MonHocManager::capNhatMonHoc(
     )) {
         return false;
     }
+    if (nodeHienTai->mh.TENMH != duLieuCu.TENMH) {
+        boThuTuTheoTen();
+    }
     if (appData_.tenFileMonHoc.empty()
         || GhiDanhSachMonHoc(appData_.tenFileMonHoc, appData_.dsMonHoc, loi)) {
         return true;
@@ -95,6 +100,7 @@ bool MonHocManager::xoaMonHoc(std::string maMH, std::string& loi) {
     )) {
         return false;
     }
+    boThuTuTheoTen();
     if (appData_.tenFileMonHoc.empty()
         || GhiDanhSachMonHoc(appData_.tenFileMonHoc, appData_.dsMonHoc, loi)) {
         return true;
@@ -125,4 +131,20 @@ treeMH* MonHocManager::layDanhSachMonHoc(int& soLuong) {
 
 int MonHocManager::tongSoMonHoc() {
     return appData_.n;
+}
+
+void MonHocManager::boThuTuTheoTen() {
+    ++appData_.phienBanMonHoc;
+    dsTheoTen_.reset();
+}
+
+treeMH* MonHocManager::layMonHocTheoTen(int& soLuong) {
+    if (!dsTheoTen_ || phienBanDangGiu_ != appData_.phienBanMonHoc) {
+        std::unique_ptr<treeMH[]> danhSach(LayDanhSachMonHoc(appData_.dsMonHoc, appData_.n, soLuong));
+        SapXepConTroMonHocTheoTen(danhSach.get(), soLuong);
+        dsTheoTen_.swap(danhSach);
+        phienBanDangGiu_ = appData_.phienBanMonHoc;
+    }
+    soLuong = appData_.n;
+    return dsTheoTen_.get();
 }

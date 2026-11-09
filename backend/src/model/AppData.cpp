@@ -54,6 +54,7 @@ void AppData::clear() {
     tenFileMonHoc.clear();
     tenFileLopSinhVien.clear();
     tenFileLopTinChi.clear();
+    ++phienBanMonHoc;
     GiaiPhongCayMonHoc(dsMonHoc);
     n = 0;
     GiaiPhongDanhSachLopTinChi(dsLopTinChi);

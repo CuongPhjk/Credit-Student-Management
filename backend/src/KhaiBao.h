@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <cstddef>
+#include <memory>
 
 using namespace std;
 
@@ -78,6 +79,7 @@ struct DS_LOP {
 
 struct AppData {
     treeMH dsMonHoc = nullptr;
+    unsigned long long phienBanMonHoc = 0;
     int n = 0;
     DS_LTC dsLopTinChi{};
     DS_LOP dsLop{};
@@ -136,6 +138,7 @@ bool DiemHopLe(float diem);
 // Delete only those arrays, never the nodes. Credit-class export borrows the original array.
 // Class export remains an allocated value array. Empty exports return nullptr and count 0.
 treeMH* LayDanhSachMonHoc(treeMH root, int n, int& soLuong);
+void SapXepConTroMonHocTheoTen(treeMH danhSach[], int soLuong);
 Lop* LayDanhSachLop(DS_LOP& dsLop, int& soLuong);
 Loptinchi** LayDanhSachLopTinChi(DS_LTC& dsLTC, int& soLuong);
 PTRSV* LayDanhSachSinhVien(Lop& lop, int& soLuong);
@@ -294,11 +297,16 @@ public:
     );
     bool xoaMonHoc(std::string maMH, std::string& loi);
     bool timMonHoc(std::string maMH, Monhoc& ketQua) ;
-    treeMH* layDanhSachMonHoc(int& soLuong) ;
-    int tongSoMonHoc() ;
+    treeMH* layDanhSachMonHoc(int& soLuong);
+    // Borrowed array sorted by name. The manager owns the array.
+    treeMH* layMonHocTheoTen(int& soLuong);
+    int tongSoMonHoc();
 
 private:
+    void boThuTuTheoTen();
     AppData& appData_;
+    std::unique_ptr<treeMH[]> dsTheoTen_;
+    unsigned long long phienBanDangGiu_ = 0;
 };
 
 class LopSinhVienManager {
